@@ -1,0 +1,42 @@
+library:
+  source-dirs: src
+tests:
+  Paskell-test:
+    source-dirs: test
+    main: Spec.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - Paskell
+copyright: 2020 Author name here
+maintainer: example@example.com
+dependencies:
+- Stack >= 0.4.0
+- containers
+- mtl
+- parser-combinators >= 1.1.0
+- text
+- void
+- megaparsec >= 8
+- base >= 4.7 && < 5
+name: Paskell
+version: 0.1.0.0
+extra-source-files:
+- README.md
+- ChangeLog.md
+author: Author name here
+github: githubuser/Paskell
+license: BSD3
+executables:
+  Paskell-exe:
+    source-dirs: app
+    main: Main.hs
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - Paskell
+description: Please see the README on GitHub at <https://github.com/githubuser/Paskell#readme>
