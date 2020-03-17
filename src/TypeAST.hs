@@ -6,34 +6,15 @@ import           Data.Text                      ( Text
                                                 )
 import           TypeValue
 
-data AST = Node String AST AST | ProgBlock [Impl] | VarBlock [VarDef] | Nil deriving (Show)
+data AST
+    = Node String AST AST
+    | ProgBlock [Impl]
+    | VarBlock [VarDef]
+    | Nil
+    deriving (Show)
 
-data StringExpr
-  = SVar String
-  | StringE String
-  | Concat StringExpr StringExpr
-  deriving (Eq, Ord, Show)
-
-data NumExpr
-  = NVar String
-  | Int Int
-  | Double Double
-  | Neg NumExpr
-  | Sum NumExpr NumExpr
-  | Sub NumExpr NumExpr
-  | Mul NumExpr NumExpr
-  | Div NumExpr NumExpr
-  deriving (Eq, Ord, Show)
-
-data BoolExpr
-  = BVar String
-  | Not BoolExpr
-  | Or BoolExpr BoolExpr
-  | And BoolExpr BoolExpr
-  | Xor BoolExpr BoolExpr
-  | BFalse
-  | BTrue
-  deriving (Eq, Ord, Show)
+type VarDef = ([Text], VarType, Maybe GenExpr)
+data VarType = BoolType | IntType | RealType | StringType | EnumType String deriving (Show, Eq)
 
 data Impl
     = Assign (Text, GenExpr)
@@ -43,6 +24,29 @@ data Impl
 
 data GenExpr = NumExpr NumExpr | BoolExpr BoolExpr | StringExpr StringExpr deriving (Show)
 
-data VarType = BoolType | IntType | RealType | StringType | EnumType String deriving (Show, Eq)
+data StringExpr
+    = SVar String
+    | StringE String
+    | Concat StringExpr StringExpr
+    deriving (Eq, Ord, Show)
 
-type VarDef = ([Text], VarType, Maybe GenExpr)
+data NumExpr
+    = NVar String
+    | Int Int
+    | Double Double
+    | Neg NumExpr
+    | Sum NumExpr NumExpr
+    | Sub NumExpr NumExpr
+    | Mul NumExpr NumExpr
+    | Div NumExpr NumExpr
+    deriving (Eq, Ord, Show)
+
+data BoolExpr
+    = BVar String
+    | Not BoolExpr
+    | Or BoolExpr BoolExpr
+    | And BoolExpr BoolExpr
+    | Xor BoolExpr BoolExpr
+    | BFalse
+    | BTrue
+    deriving (Eq, Ord, Show)

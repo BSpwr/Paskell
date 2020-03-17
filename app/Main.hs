@@ -18,10 +18,15 @@ import           Text.Megaparsec         hiding ( State )
 import           Text.Megaparsec.Char
 import           System.Environment
 
+import           Interpreter
+import           TypeAST
+
 type Parser = Parsec Void Text
 
 main :: IO ()
 main = do
     (fileName : _) <- getArgs
     contents       <- readFile fileName
-    parseTest pRun (pack contents)
+    case runParser pRun fileName (pack contents) of
+        Left  e -> print e
+        Right x -> interpreterRun x
