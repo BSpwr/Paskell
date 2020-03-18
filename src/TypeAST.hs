@@ -14,7 +14,13 @@ data AST
     deriving (Show)
 
 type VarDef = ([Text], VarType, Maybe GenExpr)
-data VarType = BoolType | IntType | RealType | StringType | EnumType String deriving (Show, Eq)
+data VarType
+     = BoolType
+     | IntType
+     | RealType
+     | StringType
+     | EnumType String
+     deriving (Show, Eq)
 
 data Impl
     = Assign (Text, GenExpr)

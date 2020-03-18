@@ -1,12 +1,15 @@
 program tester
 var gee : string = 'st' ++ 'ring';;;;;;;
 dee : string;;;;;;
+ADC : integer = 5;
+a,b,c : real;
+d : boolean;
 begin
 a := 3 + 5;;;;;;;;;;;
 b := 6.54 + 4;
 c := 3 + ADC;
 d := false || ((false && false) || true);
-writeln('lol', 5 + 2, true && false);;;;
-readln(gee, dee);
+writeln('lol', 5 + 2, true && false, a, b, c, d, gee);;;;
+// readln(gee, dee);
 end
 .

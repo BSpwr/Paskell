@@ -29,14 +29,32 @@ interpreterRun ast = evalStateT (interpreterStart ast) Map.empty
 interpreterStart :: AST -> PaskellState ()
 interpreterStart (Node "Root" a b) = do
     interpret a
-    liftIO $ putStrLn "root"
-    varTable <- get
-    liftIO $ print varTable
-    liftIO $ putStrLn "\n"
-    liftIO $ print (Node "Root" a b)
+    interpret b
+    -- liftIO $ putStrLn "root"
+    -- varTable <- get
+    -- liftIO $ print varTable
+    -- liftIO $ putStrLn "\n"
+    -- liftIO $ print (Node "Root" a b)
 
 interpret :: AST -> PaskellState ()
-interpret (VarBlock vb) = mapM_ iVarDef vb
+interpret (VarBlock  vb   ) = mapM_ iVarDef vb
+interpret (ProgBlock impls) = mapM_ implementation impls
+
+implementation :: Impl -> PaskellState ()
+implementation (Assign (t, ge)) = do
+    v <- evalGenExpr ge
+    doAssign (t, v)
+
+implementation (Writeln genExprs) = do
+    vs <- mapM evalGenExpr genExprs
+    mapM_ printValue vs
+
+-- implementation (Readln varNames) = do
+--     vs <- mapM evalGenExpr genExprs
+--     mapM_ printValue vs
+
+printValue :: Value -> PaskellState ()
+printValue v = liftIO $ print v
 
 ---------- VAR BLOCK START ----------
 iVarDef :: VarDef -> PaskellState ()
@@ -52,10 +70,10 @@ iVarDef v = do
 
 varListInsert
     :: (VarType, Maybe Value) -> Text -> PaskellState (VarType, Maybe Value)
-varListInsert (t, exp) elem = do
+varListInsert (vt, mv) t = do
     varTable <- get
-    put (Map.insert (elem) (t, exp) varTable)
-    return (t, exp)
+    put (Map.insert t (vt, mv) varTable)
+    return (vt, mv)
 ---------- VAR BLOCK START ----------
 
 varGet :: Text -> PaskellState (VarType, Maybe Value)
@@ -64,12 +82,76 @@ varGet t = do
     let v = Map.lookup t varTable
     case v of
         Just v  -> return v
-        Nothing -> error "Var not exist!"
+        Nothing -> error $ "Variable ->" ++ show t ++ "<- was never declared"
 
 valueExist :: Maybe Value -> Value
 valueExist t = case t of
     Just v  -> v
-    Nothing -> error "Var was never assigned!"
+    Nothing -> error $ "Variable ->" ++ show t ++ "<- was never assigned"
+
+doAssign :: (Text, Value) -> PaskellState ()
+doAssign (t, v) = do
+    varTable <- get
+    (vt, _)  <- varGet t
+    case v of
+        VBool b -> case valueMatch vt (Just v) of
+            True  -> put (Map.insert t (vt, Just v) varTable)
+            False -> error $ "Expected ->" ++ show t ++ "<- to be boolean type"
+        VNumeric (VInt n) -> case valueMatch vt (Just v) of
+            True -> put (Map.insert t (vt, Just v) varTable)
+            False ->
+                case
+                        valueMatch
+                            vt
+                            (Just . VNumeric . VDouble $ fromIntegral n)
+                    of
+                        True ->
+                            put
+                                (Map.insert
+                                    t
+                                    ( vt
+                                    , Just . VNumeric . VDouble $ fromIntegral n
+                                    )
+                                    varTable
+                                )
+                        False ->
+                            error
+                                $  "Expected ->"
+                                ++ show t
+                                ++ "<- to be numeric type (int or real)"
+        VNumeric (VDouble d) -> case valueMatch vt (Just v) of
+            True  -> put (Map.insert t (vt, Just v) varTable)
+            False -> error $ "Expected ->" ++ show t ++ "<- to be double type"
+        VString t -> case valueMatch vt (Just v) of
+            True  -> put (Map.insert t (vt, Just v) varTable)
+            False -> error $ "Expected ->" ++ show t ++ "<- to be string type"
+        -- TODO: Properly handle enums
+        VEnum t -> case valueMatch vt (Just v) of
+            True  -> put (Map.insert t (vt, Just v) varTable)
+            False -> error $ "Expected ->" ++ show t ++ "<- to be enum type"
+
+valueMatch :: VarType -> Maybe Value -> Bool
+valueMatch vt mv = do
+    case mv of
+        Just v -> case v of
+            VBool b -> case vt of
+                BoolType -> True
+                _        -> False
+            VNumeric n -> case vt of
+                IntType -> case n of
+                    VInt i -> True
+                    _      -> False
+                RealType -> case n of
+                    VDouble d -> True
+                    _         -> False
+            VString s -> case vt of
+                StringType -> True
+                _          -> False
+                -- TODO: Properly handle enums
+            VEnum en -> case vt of
+                EnumType _ -> True
+                _          -> False
+        Nothing -> False
 
 ---------- EXPR START ----------
 -- Because of the ordering of GenExpr in parser
@@ -92,7 +174,7 @@ evalStringExpr se = case se of
         let ve = valueExist v
         case ve of
             VString sl -> return sl
-            _          -> error "Expected string"
+            _ -> error $ "Expected ->" ++ show t ++ "<- to be string type"
     StringE sl   -> return sl
     Concat s1 s2 -> do
         s1e <- evalStringExpr s1
@@ -108,7 +190,7 @@ evalBoolExpr be = case be of
         let ve = valueExist v
         case ve of
             VBool sl -> return sl
-            _        -> error "Expected string"
+            _ -> error $ "Expected ->" ++ show t ++ "<- to be boolean type"
     Not b    -> not <$> evalBoolExpr b
     Or b1 b2 -> do
         b1e <- evalBoolExpr b1
@@ -134,7 +216,11 @@ evalNumExpr ne = case ne of
         let ve = valueExist v
         case ve of
             VNumeric sl -> return sl
-            _           -> error "Expected numeric type (int or real)"
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show t
+                    ++ "<- to be numeric type (int or real)"
     Int    i -> return $ VInt i
     Double d -> return $ VDouble d
     Neg    n -> do
