@@ -1,5 +1,5 @@
 program tester
-var gee : string = 'ree';;;;;;;
+var gee : string = 'st' ++ 'ring';;;;;;;
 dee : string;;;;;;
 begin
 a := 3 + 5;;;;;;;;;;;

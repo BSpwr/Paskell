@@ -153,15 +153,15 @@ pWriteln = do
 
 ---------- NUM EXPR START ----------
 pGenExprs :: Parser [GenExpr]
-pGenExprs = try multiple <|> single  where
-    multiple = do
-        e1 <- pGenExpr
+pGenExprs = try a <|> b  where
+    a = do
+        a1 <- pGenExpr
         com
-        e2 <- pGenExprs
-        return (e1 : e2)
-    single = do
-        e <- pGenExpr
-        return [e]
+        a2 <- pGenExprs
+        return (a1 : a2)
+    b = do
+        b1 <- pGenExpr
+        return [b1]
 
 pGenExpr :: Parser GenExpr
 pGenExpr = try s <|> try b <|> n  where
@@ -170,7 +170,7 @@ pGenExpr = try s <|> try b <|> n  where
     n = NumExpr <$> pNumExpr
 
 pNumVar :: Parser NumExpr
-pNumVar = NVar . unpack <$> identifier
+pNumVar = NVar <$> identifier
 
 pInteger :: Parser NumExpr
 pInteger = Int <$> signedInt
@@ -200,7 +200,7 @@ numOperatorTable =
 
 ---------- BOOL EXPR START ----------
 pBoolVar :: Parser BoolExpr
-pBoolVar = BVar . unpack <$> identifier
+pBoolVar = BVar <$> identifier
 
 pFalse :: Parser BoolExpr
 pFalse = do
@@ -232,10 +232,14 @@ boolOperatorTable =
 
 ---------- STRING EXPR START ----------
 pStringVar :: Parser StringExpr
-pStringVar = SVar . unpack <$> identifier
+pStringVar = SVar <$> identifier
 
 pStringLiteral :: Parser StringExpr
-pStringLiteral = StringE <$> (char '\'' *> manyTill L.charLiteral (char '\''))
+pStringLiteral =
+    lexeme
+        $   StringE
+        .   pack
+        <$> (char '\'' *> manyTill L.charLiteral (char '\''))
 
 pStringTerm :: Parser StringExpr
 pStringTerm = choice [parens pStringExpr, pStringLiteral, pStringVar]
@@ -312,10 +316,7 @@ signedDouble :: Parser Double
 signedDouble = L.signed sc double
 
 semi :: Parser Text
-semi = try a <|> b
-  where
-    a = symbol ";" >> semi
-    b = symbol ";"
+semi = symbol ";" >> head <$> M.many semi
 
 col :: Parser Text
 col = symbol ":"
@@ -330,8 +331,8 @@ dot :: Parser Text
 dot = symbol "."
 
 sc :: Parser ()
-sc = L.space space1 lineCmnt blockCmnt
+sc = L.space space1 lineComment blockComment
   where
-    lineCmnt  = L.skipLineComment "//"
-    blockCmnt = L.skipBlockComment "/*" "*/"
+    lineComment  = L.skipLineComment "//"
+    blockComment = L.skipBlockComment "/*" "*/"
 ---------- UTIL END ----------

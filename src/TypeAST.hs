@@ -25,13 +25,13 @@ data Impl
 data GenExpr = NumExpr NumExpr | BoolExpr BoolExpr | StringExpr StringExpr deriving (Show)
 
 data StringExpr
-    = SVar String
-    | StringE String
+    = SVar Text
+    | StringE Text
     | Concat StringExpr StringExpr
     deriving (Eq, Ord, Show)
 
 data NumExpr
-    = NVar String
+    = NVar Text
     | Int Int
     | Double Double
     | Neg NumExpr
@@ -42,7 +42,7 @@ data NumExpr
     deriving (Eq, Ord, Show)
 
 data BoolExpr
-    = BVar String
+    = BVar Text
     | Not BoolExpr
     | Or BoolExpr BoolExpr
     | And BoolExpr BoolExpr
