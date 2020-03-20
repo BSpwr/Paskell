@@ -56,3 +56,6 @@ data BoolExpr
     | BFalse
     | BTrue
     deriving (Eq, Ord, Show)
+
+-- class ShowBase v where
+

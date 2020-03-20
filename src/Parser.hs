@@ -179,7 +179,7 @@ pFloat :: Parser NumExpr
 pFloat = Double <$> signedDouble
 
 pNumTerm :: Parser NumExpr
-pNumTerm = choice [parens pNumExpr, try pFloat, pInteger, pNumVar]
+pNumTerm = choice [parens pNumExpr, try pFloat, try pInteger, pNumVar]
 
 pNumExpr :: Parser NumExpr
 pNumExpr = makeExprParser pNumTerm numOperatorTable
@@ -242,7 +242,8 @@ pStringLiteral =
         <$> (char '\'' *> manyTill L.charLiteral (char '\''))
 
 pStringTerm :: Parser StringExpr
-pStringTerm = choice [parens pStringExpr, pStringLiteral, pStringVar]
+pStringTerm =
+    choice [try $ parens pStringExpr, try pStringLiteral, try pStringVar]
 
 pStringExpr :: Parser StringExpr
 pStringExpr = makeExprParser pStringTerm stringOperatorTable

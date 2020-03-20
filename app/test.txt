@@ -3,13 +3,21 @@ var gee : string = 'st' ++ 'ring';;;;;;;
 dee : string;;;;;;
 ADC : integer = 5;
 a,b,c : real;
-d : boolean;
+d,e : boolean;
 begin
 a := 3 + 5;;;;;;;;;;;
-b := 6.54 + 4;
-c := 3 + ADC;
+b := 6.54 + 434343;
+// this fails (BUG)
+//c := a + b;
+// this works fine
+c := (a + b);
 d := false || ((false && false) || true);
-writeln('lol', 5 + 2, true && false, a, b, c, d, gee);;;;
-// readln(gee, dee);
+dee := gee ++ 'aaaa';
+readln(a, b);
+// this fails (BUG)
+//writeln(a + b);
+// this works fine
+writeln((a+b));
+writeln('lol ', 5 + 2, true && false, a, b, c, d, ' ' ++ gee);;;;
 end
 .

@@ -25,8 +25,8 @@ type Parser = Parsec Void Text
 
 main :: IO ()
 main = do
-    (fileName : _) <- getArgs
-    contents       <- readFile fileName
+    fileName <- head <$> getArgs
+    contents <- readFile fileName
     case runParser pRun fileName (pack contents) of
-        Left  e -> print e
+        Left  e -> putStrLn $ errorBundlePretty e
         Right x -> interpreterRun x
