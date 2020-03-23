@@ -62,8 +62,8 @@ readString :: IO String
 readString = getLine
 
 interpret :: AST -> PaskellState ()
-interpret (VarBlock  vb        ) = mapM_ iVarDef vb
-interpret (ProgBlock statements) = mapM_ execStatement statements
+interpret (VarBlock  vb                 ) = mapM_ iVarDef vb
+interpret (ProgBlock (StatementBlock sb)) = mapM_ execStatement sb
 
 execStatement :: Statement -> PaskellState ()
 execStatement (Assign (t, expr)) = do
@@ -75,7 +75,19 @@ execStatement (Writeln exprs) = do
     mapM_ printValue vs
     liftIO $ putStrLn ""
 
-execStatement (Readln varNames) = mapM_ storeValueFromStdin varNames
+execStatement (Readln varNames       ) = mapM_ storeValueFromStdin varNames
+
+execStatement (StatementIf expr s1 s2) = do
+    ev <- evalExpr expr
+    case ev of
+        VBool b -> do
+            if b == True
+                then execStatement s1 >> return ()
+                else case s2 of
+                    Just s -> do
+                        execStatement s >> return ()
+                    Nothing -> return ()
+        _ -> error "Expression for if statement must be boolean type"
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do

@@ -35,7 +35,7 @@ pStart = do
     pProgramHeader
     a1 <- pVarBlocks
     semi
-    a2 <- pProgBlock
+    a2 <- pStatementBlock
     dot
     return $ Node "Root" (VarBlock a1) (ProgBlock a2)
 
@@ -101,29 +101,36 @@ pVarType =
 ---------- VAL BLOCK WITH ASSIGNMENT END ----------
 
 ---------- PROG BLOCK START ----------
-pProgBlock :: Parser [Statement]
-pProgBlock = do
+pStatementBlock :: Parser Statement
+pStatementBlock = do
     rword "begin"
     stat <- pStatements
     optional semi
     rword "end"
-    return stat
+    return $ StatementBlock stat
 ---------- PROG BLOCK END ----------
 
 pStatements :: Parser [Statement]
 pStatements = try a <|> b
   where
     a = do
-        a1 <- pImplementation
+        a1 <- pStatement
         semi
         a2 <- pStatements
         return (a1 : a2)
     b = do
-        b1 <- pImplementation
+        b1 <- pStatement
         return [b1]
 
-pImplementation :: Parser Statement
-pImplementation = choice [try pAssign, pReadln, pWriteln]
+pStatement :: Parser Statement
+pStatement = choice [pStatementBlock, pIf, try pAssign, pReadln, pWriteln]
+
+pIf :: Parser Statement
+pIf = do
+    expr <- between (rword "if") (rword "then") pExpr
+    s1   <- pStatement
+    s2   <- optional $ (rword "else") >> pStatement
+    return $ StatementIf expr s1 s2
 
 ---------- (RE)ASSIGN START ----------
 pAssign :: Parser Statement
@@ -138,17 +145,13 @@ pAssign = do
 pReadln :: Parser Statement
 pReadln = do
     rword "readln"
-    symbol "("
-    vL <- pVarList
-    symbol ")"
+    vL <- parens pVarList
     return $ Readln vL
 
 pWriteln :: Parser Statement
 pWriteln = do
     rword "writeln"
-    symbol "("
-    ex <- pExprs
-    symbol ")"
+    ex <- parens pExprs
     return $ Writeln ex
 ---------- IO END ----------
 
@@ -263,6 +266,9 @@ rws =
     , "true"
     , "writeln"
     , "readln"
+    , "if"
+    , "then"
+    , "else"
     ]
 
 rword :: Text -> Parser Text

@@ -8,7 +8,7 @@ import           TypeValue
 
 data AST
     = Node String AST AST
-    | ProgBlock [Statement]
+    | ProgBlock Statement
     | VarBlock [VarDef]
     | Nil
     deriving (Show)
@@ -23,9 +23,11 @@ data VarType
      deriving (Show, Eq)
 
 data Statement
-    = Assign (Text, Expr)
+    = StatementBlock [Statement]
+    | Assign (Text, Expr)
     | Writeln [Expr]
     | Readln [Text]
+    | StatementIf Expr Statement (Maybe Statement)
     deriving (Show)
 data Expr
     = Var Text
