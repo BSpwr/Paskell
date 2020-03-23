@@ -40,19 +40,19 @@ pStart = do
     return $ Node "Root" (VarBlock a1) (ProgBlock a2)
 
 pProgramHeader :: Parser Text
-pProgramHeader = try (rword "program" >> identifier) <|> rword "program"
+pProgramHeader = try (pRW_program >> identifier) <|> pRW_program
 
 ---------- VAR BLOCK WITH ASSIGNMENT START ----------
 pVarBlocks :: Parser [VarDef]
 pVarBlocks = try a <|> b  where
     a = do
-        rword "var"
+        pRW_var
         a1 <- pVarDefs
         semi
-        rword "var"
+        pRW_var
         a2 <- pVarDefs
         return (a1 ++ a2)
-    b = rword "var" >> pVarDefs
+    b = pRW_var >> pVarDefs
 
 pVarDefs :: Parser [VarDef]
 pVarDefs = try a <|> b  where
@@ -93,20 +93,20 @@ pVarList = try a <|> b  where
 
 pVarType :: Parser VarType
 pVarType =
-    (rword "boolean" >> return BoolType)
-        <|> (rword "integer" >> return IntType)
-        <|> (rword "real" >> return RealType)
-        <|> (rword "string" >> return StringType)
+    (pRW_boolean >> return BoolType)
+        <|> (pRW_integer >> return IntType)
+        <|> (pRW_real >> return RealType)
+        <|> (pRW_string >> return StringType)
         <|> (EnumType . unpack <$> identifier)
 ---------- VAL BLOCK WITH ASSIGNMENT END ----------
 
 ---------- PROG BLOCK START ----------
 pStatementBlock :: Parser Statement
 pStatementBlock = do
-    rword "begin"
+    pRW_begin
     stat <- pStatements
     optional semi
-    rword "end"
+    pRW_end
     return $ StatementBlock stat
 ---------- PROG BLOCK END ----------
 
@@ -127,9 +127,9 @@ pStatement = choice [pStatementBlock, pIf, try pAssign, pReadln, pWriteln]
 
 pIf :: Parser Statement
 pIf = do
-    expr <- between (rword "if") (rword "then") pExpr
+    expr <- between pRW_if pRW_then pExpr
     s1   <- pStatement
-    s2   <- optional $ (rword "else") >> pStatement
+    s2   <- optional $ pRW_else >> pStatement
     return $ StatementIf expr s1 s2
 
 ---------- (RE)ASSIGN START ----------
@@ -144,13 +144,13 @@ pAssign = do
 ---------- IO START ----------
 pReadln :: Parser Statement
 pReadln = do
-    rword "readln"
+    pRW_readln
     vL <- parens pVarList
     return $ Readln vL
 
 pWriteln :: Parser Statement
 pWriteln = do
-    rword "writeln"
+    pRW_writeln
     ex <- parens pExprs
     return $ Writeln ex
 ---------- IO END ----------
@@ -177,14 +177,10 @@ pFloat :: Parser Expr
 pFloat = Double <$> signedDouble
 
 pFalse :: Parser Expr
-pFalse = do
-    rword "false"
-    return BFalse
+pFalse = pRW_false >> return BFalse
 
 pTrue :: Parser Expr
-pTrue = do
-    rword "true"
-    return BTrue
+pTrue = pRW_true >> return BTrue
 
 pStringLiteral :: Parser Expr
 pStringLiteral =
@@ -270,6 +266,22 @@ rws =
     , "then"
     , "else"
     ]
+
+pRW_var = rword "var"
+pRW_begin = rword "begin"
+pRW_end = rword "end"
+pRW_program = rword "program"
+pRW_boolean = rword "boolean"
+pRW_integer = rword "integer"
+pRW_real = rword "real"
+pRW_string = rword "string"
+pRW_false = rword "false"
+pRW_true = rword "true"
+pRW_writeln = rword "writeln"
+pRW_readln = rword "readln"
+pRW_if = rword "if"
+pRW_then = rword "then"
+pRW_else = rword "else"
 
 rword :: Text -> Parser Text
 rword w = if w `elem` rws
