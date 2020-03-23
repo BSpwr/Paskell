@@ -1,5 +1,5 @@
 program tester
-var gee : string = 'st' ++ 'ring';;;;;;;
+var gee : string = 'string';;;;;;;
 dee : string;;;;;;
 ADC : integer = 5;
 a,b,c : real;
@@ -7,17 +7,11 @@ d,e : boolean;
 begin
 a := 3 + 5;;;;;;;;;;;
 b := 6.54 + 434343;
-// this fails (BUG)
-//c := a + b;
-// this works fine
-c := (a + b);
+c := a + b;
 d := false || ((false && false) || true);
 dee := gee ++ 'aaaa';
-readln(a, b);
-// this fails (BUG)
-//writeln(a + b);
-// this works fine
-writeln((a+b));
+//readln(a, b);
+writeln('nut' = 'nut');
 writeln('lol ', 5 + 2, true && false, a, b, c, d, ' ' ++ gee);;;;
 end
 .

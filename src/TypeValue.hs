@@ -7,9 +7,8 @@ import           Data.Text                      ( Text
 
 data Value
     = VBool Bool
-    | VNumeric Numeric
+    | VInt Int
+    | VDouble Double
     | VString Text
     | VEnum Text
-    deriving (Eq, Show)
-
-data Numeric = VInt Int | VDouble Double  deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show)

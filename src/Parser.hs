@@ -2,8 +2,9 @@
 
 module Parser where
 
-
-import           Control.Applicative
+import           Control.Applicative     hiding ( some
+                                                , many
+                                                )
 import           Control.Monad
 import           Data.Text                      ( Text
                                                 , unpack
@@ -71,7 +72,7 @@ pVarDef = try a <|> b  where
         col
         a2 <- pVarType
         equ
-        a3 <- pGenExpr
+        a3 <- pExpr
         return (a1, a2, Just a3)
     b = do
         b1 <- pVarList
@@ -100,7 +101,7 @@ pVarType =
 ---------- VAL BLOCK WITH ASSIGNMENT END ----------
 
 ---------- PROG BLOCK START ----------
-pProgBlock :: Parser [Impl]
+pProgBlock :: Parser [Statement]
 pProgBlock = do
     rword "begin"
     stat <- pStatements
@@ -109,7 +110,7 @@ pProgBlock = do
     return stat
 ---------- PROG BLOCK END ----------
 
-pStatements :: Parser [Impl]
+pStatements :: Parser [Statement]
 pStatements = try a <|> b
   where
     a = do
@@ -121,20 +122,20 @@ pStatements = try a <|> b
         b1 <- pImplementation
         return [b1]
 
-pImplementation :: Parser Impl
+pImplementation :: Parser Statement
 pImplementation = choice [try pAssign, pReadln, pWriteln]
 
 ---------- (RE)ASSIGN START ----------
-pAssign :: Parser Impl
+pAssign :: Parser Statement
 pAssign = do
     i <- identifier
     col >> equ
-    v <- pGenExpr
+    v <- pExpr
     return $ Assign (i, v)
 ---------- (RE)ASSIGN END ----------
 
 ---------- IO START ----------
-pReadln :: Parser Impl
+pReadln :: Parser Statement
 pReadln = do
     rword "readln"
     symbol "("
@@ -142,125 +143,110 @@ pReadln = do
     symbol ")"
     return $ Readln vL
 
-pWriteln :: Parser Impl
+pWriteln :: Parser Statement
 pWriteln = do
     rword "writeln"
     symbol "("
-    ex <- pGenExprs
+    ex <- pExprs
     symbol ")"
     return $ Writeln ex
 ---------- IO END ----------
 
----------- NUM EXPR START ----------
-pGenExprs :: Parser [GenExpr]
-pGenExprs = try a <|> b  where
+---------- EXPR START ----------
+pExprs :: Parser [Expr]
+pExprs = try a <|> b  where
     a = do
-        a1 <- pGenExpr
+        a1 <- pExpr
         com
-        a2 <- pGenExprs
+        a2 <- pExprs
         return (a1 : a2)
     b = do
-        b1 <- pGenExpr
+        b1 <- pExpr
         return [b1]
 
-pGenExpr :: Parser GenExpr
-pGenExpr = try s <|> try b <|> n  where
-    s = StringExpr <$> pStringExpr
-    b = BoolExpr <$> pBoolExpr
-    n = NumExpr <$> pNumExpr
+pVar :: Parser Expr
+pVar = Var <$> identifier
 
-pNumVar :: Parser NumExpr
-pNumVar = NVar <$> identifier
-
-pInteger :: Parser NumExpr
+pInteger :: Parser Expr
 pInteger = Int <$> signedInt
 
-pFloat :: Parser NumExpr
+pFloat :: Parser Expr
 pFloat = Double <$> signedDouble
 
-pNumTerm :: Parser NumExpr
-pNumTerm = choice [parens pNumExpr, try pFloat, try pInteger, pNumVar]
-
-pNumExpr :: Parser NumExpr
-pNumExpr = makeExprParser pNumTerm numOperatorTable
-
-binaryN :: Text -> (NumExpr -> NumExpr -> NumExpr) -> Operator Parser NumExpr
-binaryN name f = InfixL (f <$ symbol name)
-prefixN, postfixN :: Text -> (NumExpr -> NumExpr) -> Operator Parser NumExpr
-prefixN name f = Prefix (f <$ symbol name)
-postfixN name f = Postfix (f <$ symbol name)
-
-numOperatorTable :: [[Operator Parser NumExpr]]
-numOperatorTable =
-    [ [prefixN "-" Neg, prefixN "+" id]
-    , [binaryN "*" Mul, binaryN "/" Div]
-    , [binaryN "+" Sum, binaryN "-" Sub]
-    ]
----------- NUM EXPR END ----------
-
----------- BOOL EXPR START ----------
-pBoolVar :: Parser BoolExpr
-pBoolVar = BVar <$> identifier
-
-pFalse :: Parser BoolExpr
+pFalse :: Parser Expr
 pFalse = do
     rword "false"
     return BFalse
 
-pTrue :: Parser BoolExpr
+pTrue :: Parser Expr
 pTrue = do
     rword "true"
     return BTrue
 
-pBoolTerm :: Parser BoolExpr
-pBoolTerm = choice [parens pBoolExpr, try pFalse, try pTrue, pBoolVar]
-
-pBoolExpr :: Parser BoolExpr
-pBoolExpr = makeExprParser pBoolTerm boolOperatorTable
-
-binaryB
-    :: Text -> (BoolExpr -> BoolExpr -> BoolExpr) -> Operator Parser BoolExpr
-binaryB name f = InfixL (f <$ symbol name)
-prefixB, postfixB :: Text -> (BoolExpr -> BoolExpr) -> Operator Parser BoolExpr
-prefixB name f = Prefix (f <$ symbol name)
-postfixB name f = Postfix (f <$ symbol name)
-
-boolOperatorTable :: [[Operator Parser BoolExpr]]
-boolOperatorTable =
-    [[prefixB "~" Not], [binaryB "||" Or, binaryB "&&" And], [binaryB "^" Xor]]
----------- BOOL EXPR END ----------
-
----------- STRING EXPR START ----------
-pStringVar :: Parser StringExpr
-pStringVar = SVar <$> identifier
-
-pStringLiteral :: Parser StringExpr
+pStringLiteral :: Parser Expr
 pStringLiteral =
     lexeme
-        $   StringE
+        $   StringLiteral
         .   pack
         <$> (char '\'' *> manyTill L.charLiteral (char '\''))
 
-pStringTerm :: Parser StringExpr
-pStringTerm =
-    choice [try $ parens pStringExpr, try pStringLiteral, try pStringVar]
+pTerm :: Parser Expr
+pTerm = choice
+    [ parens pExpr
+    , try pFloat
+    , try pInteger
+    , try pFalse
+    , try pTrue
+    , try pStringLiteral
+    , pVar
+    ]
 
-pStringExpr :: Parser StringExpr
-pStringExpr = makeExprParser pStringTerm stringOperatorTable
+pExpr :: Parser Expr
+pExpr = makeExprParser pTerm operatorTable
 
-binaryS
-    :: Text
-    -> (StringExpr -> StringExpr -> StringExpr)
-    -> Operator Parser StringExpr
-binaryS name f = InfixL (f <$ symbol name)
-prefixS, postfixS
-    :: Text -> (StringExpr -> StringExpr) -> Operator Parser StringExpr
-prefixS name f = Prefix (f <$ symbol name)
-postfixS name f = Postfix (f <$ symbol name)
+binary :: Text -> (Expr -> Expr -> Expr) -> Operator Parser Expr
+binary name f = InfixL (f <$ symbol name)
+prefix, postfix :: Text -> (Expr -> Expr) -> Operator Parser Expr
+prefix name f = Prefix (f <$ symbol name)
+postfix name f = Postfix (f <$ symbol name)
 
-stringOperatorTable :: [[Operator Parser StringExpr]]
-stringOperatorTable = [[binaryS "++" Concat]]
----------- STRING EXPR END ----------
+binaryNotFollowedBy
+    :: Text -> Text -> (Expr -> Expr -> Expr) -> Operator Parser Expr
+binaryNotFollowedBy name next f = InfixL (f <$ opNotFollowedBy name next)
+
+opNotFollowedBy :: Text -> Text -> Parser Text
+opNotFollowedBy name next =
+    (lexeme . try) (string name <* notFollowedBy (symbol next))
+
+operatorTable :: [[Operator Parser Expr]]
+operatorTable =
+    [ [prefix "-" Neg, prefix "+" id]
+    , [prefix "~" Not, prefix "not" Not]
+    , [binary "&&" And, binary "&" And, binaryNotFollowedBy "and" "then" And]
+    , [binary "||" Or, binary "|" Or, binaryNotFollowedBy "or" "else" Or]
+    , [binary "^" Xor, binary "xor" Xor]
+    , [ binary "<<"  ShiftLeft
+      , binary "shl" ShiftLeft
+      , binary ">>"  ShiftRight
+      , binary "shr" ShiftRight
+      ]
+    , [binary "*" Mul, binary "/" Div, binary "%" Mod]
+    , [binaryNotFollowedBy "+" "+" Sum, binary "-" Sub]
+    , [ binary "="  Eq
+      , binary "<>" NotEq
+      , binary "!=" NotEq
+      , binary ">"  GreaterThan
+      , binary "<"  LessThan
+      , binary ">=" GreaterThanEq
+      , binary "<=" LessThanEq
+      ]
+    , [ binary "and then" AndThen
+      , binary "or else"  OrElse
+      ]
+    -- string specific operators
+    , [binary "++" StringConcat]
+    ]
+---------- EXPR END ----------
 
 ---------- UTIL START ----------
 rws :: [Text] -- list of reserved words
@@ -317,7 +303,7 @@ signedDouble :: Parser Double
 signedDouble = L.signed sc double
 
 semi :: Parser Text
-semi = symbol ";" >> head <$> M.many semi
+semi = head <$> some (symbol ";")
 
 col :: Parser Text
 col = symbol ":"

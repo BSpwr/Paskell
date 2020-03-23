@@ -8,6 +8,8 @@ import qualified Data.Map.Strict               as Map
 
 import           Data.Stack                     ( Stack )
 import qualified Data.Stack                    as Stack
+import           Data.Fixed
+import           Data.Bits
 import           Data.Text                      ( Text
                                                 , unpack
                                                 , pack
@@ -45,8 +47,8 @@ interpreterStart (Node "Root" a b) = do
 readValue :: VarType -> IO Value
 readValue vt = case vt of
     BoolType   -> VBool <$> readBool
-    IntType    -> VNumeric . VInt <$> readInt
-    RealType   -> VNumeric . VDouble <$> readDouble
+    IntType    -> VInt <$> readInt
+    RealType   -> VDouble <$> readDouble
     StringType -> VString . pack <$> readString
     EnumType s -> VEnum . pack <$> readString
 
@@ -60,20 +62,20 @@ readString :: IO String
 readString = getLine
 
 interpret :: AST -> PaskellState ()
-interpret (VarBlock  vb   ) = mapM_ iVarDef vb
-interpret (ProgBlock impls) = mapM_ implementation impls
+interpret (VarBlock  vb        ) = mapM_ iVarDef vb
+interpret (ProgBlock statements) = mapM_ execStatement statements
 
-implementation :: Impl -> PaskellState ()
-implementation (Assign (t, ge)) = do
-    v <- evalGenExpr ge
+execStatement :: Statement -> PaskellState ()
+execStatement (Assign (t, expr)) = do
+    v <- evalExpr expr
     doAssign (t, v)
 
-implementation (Writeln genExprs) = do
-    vs <- mapM evalGenExpr genExprs
+execStatement (Writeln exprs) = do
+    vs <- mapM evalExpr exprs
     mapM_ printValue vs
     liftIO $ putStrLn ""
 
-implementation (Readln varNames) = mapM_ storeValueFromStdin varNames
+execStatement (Readln varNames) = mapM_ storeValueFromStdin varNames
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do
@@ -86,22 +88,19 @@ printValue :: Value -> PaskellState ()
 printValue v = liftIO $ putStr $ showValue v
 
 showValue :: Value -> String
-showValue (VBool    b) = show b
-showValue (VNumeric n) = showNumeric n
-showValue (VString  s) = unpack s
-showValue (VEnum    e) = unpack e
-
-showNumeric :: Numeric -> String
-showNumeric (VInt    i) = show i
-showNumeric (VDouble d) = show d
+showValue (VBool   b) = show b
+showValue (VInt    i) = show i
+showValue (VDouble d) = show d
+showValue (VString s) = unpack s
+showValue (VEnum   e) = unpack e
 
 ---------- VAR BLOCK START ----------
 iVarDef :: VarDef -> PaskellState ()
 iVarDef v = do
-    let (s, t, g) = v
-    let ps_e = case g of
-            Just ge -> Just <$> evalGenExpr ge
-            Nothing -> return Nothing
+    let (s, t, me) = v
+    let ps_e = case me of
+            Just expr -> Just <$> evalExpr expr
+            Nothing   -> return Nothing
     e <- ps_e
     -- TODO: Check if type and Value match
     foldM_ varListInsert (t, e) s
@@ -135,24 +134,21 @@ doAssign (t, v) = do
         VBool b -> if valueMatch vt (Just v)
             then put (Map.insert t (vt, Just v) varTable)
             else error $ "Expected ->" ++ show t ++ "<- to be boolean type"
-        VNumeric (VInt n) -> if valueMatch vt (Just v)
+        VInt n -> if valueMatch vt (Just v)
             then put (Map.insert t (vt, Just v) varTable)
-            else
-                (if valueMatch vt (Just . VNumeric . VDouble $ fromIntegral n)
-                    then
-                        put
-                            (Map.insert
-                                t
-                                (vt, Just . VNumeric . VDouble $ fromIntegral n)
-                                varTable
-                            )
-                    else
-                        error
-                        $  "Expected ->"
-                        ++ show t
-                        ++ "<- to be numeric type (int or real)"
-                )
-        VNumeric (VDouble d) -> if valueMatch vt (Just v)
+            else if valueMatch vt (Just . VDouble $ fromIntegral n)
+                then
+                    put
+                        (Map.insert t
+                                    (vt, Just . VDouble $ fromIntegral n)
+                                    varTable
+                        )
+                else
+                    error
+                    $  "Expected ->"
+                    ++ show t
+                    ++ "<- to be numeric type (int or real)"
+        VDouble d -> if valueMatch vt (Just v)
             then put (Map.insert t (vt, Just v) varTable)
             else error $ "Expected ->" ++ show t ++ "<- to be double type"
         VString t -> if valueMatch vt (Just v)
@@ -169,13 +165,12 @@ valueMatch vt mv = case mv of
         VBool b -> case vt of
             BoolType -> True
             _        -> False
-        VNumeric n -> case vt of
-            IntType -> case n of
-                VInt i -> True
-                _      -> False
-            RealType -> case n of
-                VDouble d -> True
-                _         -> False
+        VInt n -> case vt of
+            IntType -> True
+            _       -> False
+        VDouble d -> case vt of
+            RealType -> True
+            _        -> False
         VString s -> case vt of
             StringType -> True
             _          -> False
@@ -186,110 +181,248 @@ valueMatch vt mv = case mv of
     Nothing -> False
 
 ---------- EXPR START ----------
--- Because of the ordering of GenExpr in parser
--- lone variable names will be of type StringExpr, so handle accordingly
-evalGenExpr :: GenExpr -> PaskellState Value
-evalGenExpr (StringExpr se) = case se of
-    SVar t -> do
-        (vt, v) <- varGet t
+evalExpr :: Expr -> PaskellState Value
+evalExpr expr = case expr of
+    Var t -> do
+        (_, v) <- varGet t
         return $ valueExist v
-    se -> VString <$> evalStringExpr se
-
-evalGenExpr (BoolExpr be) = VBool <$> evalBoolExpr be
-
-evalGenExpr (NumExpr  ne) = VNumeric <$> evalNumExpr ne
-
-evalStringExpr :: StringExpr -> PaskellState Text
-evalStringExpr se = case se of
-    SVar t -> do
-        (_, v) <- varGet t
-        let ve = valueExist v
-        case ve of
-            VString sl -> return sl
-            _ -> error $ "Expected ->" ++ show t ++ "<- to be string type"
-    StringE sl   -> return sl
-    Concat s1 s2 -> do
-        s1e <- evalStringExpr s1
-        s2e <- evalStringExpr s2
-        return $ pack $ unpack s1e ++ unpack s2e
-
-evalBoolExpr :: BoolExpr -> PaskellState Bool
-evalBoolExpr be = case be of
-    BTrue  -> return True
-    BFalse -> return False
-    BVar t -> do
-        (_, v) <- varGet t
-        let ve = valueExist v
-        case ve of
-            VBool sl -> return sl
-            _ -> error $ "Expected ->" ++ show t ++ "<- to be boolean type"
-    Not b    -> not <$> evalBoolExpr b
-    Or b1 b2 -> do
-        b1e <- evalBoolExpr b1
-        b2e <- evalBoolExpr b2
-        return (b1e || b2e)
-    And b1 b2 -> do
-        b1e <- evalBoolExpr b1
-        b2e <- evalBoolExpr b2
-        return (b1e && b2e)
-    Xor b1 b2 -> do
-        b1e <- evalBoolExpr b1
-        b2e <- evalBoolExpr b2
-        return (xor b1e b2e)
-
-xor :: Bool -> Bool -> Bool
-xor True  p = not p
-xor False p = p
-
-evalNumExpr :: NumExpr -> PaskellState Numeric
-evalNumExpr ne = case ne of
-    NVar t -> do
-        (_, v) <- varGet t
-        let ve = valueExist v
-        case ve of
-            VNumeric sl -> return sl
-            _ ->
-                error
-                    $  "Expected ->"
-                    ++ show t
-                    ++ "<- to be numeric type (int or real)"
     Int    i -> return $ VInt i
     Double d -> return $ VDouble d
     Neg    n -> do
-        n1e <- evalNumExpr n
+        n1e <- evalExpr n
         case n1e of
             VInt    ie -> return $ VInt (-ie)
             VDouble de -> return $ VDouble (-de)
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show n1e
+                    ++ "<- to be numeric type (int or real)"
     Sum s1 s2 -> do
-        s1e <- evalNumExpr s1
-        s2e <- evalNumExpr s2
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
         case (s1e, s2e) of
             (VInt    i1, VInt i2   ) -> return $ VInt (i1 + i2)
             (VInt    i1, VDouble d2) -> return $ VDouble (fromIntegral i1 + d2)
             (VDouble d1, VInt i2   ) -> return $ VDouble (d1 + fromIntegral i2)
             (VDouble d1, VDouble d2) -> return $ VDouble (d1 + d2)
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be numeric type (int or real)"
     Sub s1 s2 -> do
-        s1e <- evalNumExpr s1
-        s2e <- evalNumExpr s2
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
         case (s1e, s2e) of
             (VInt    i1, VInt i2   ) -> return $ VInt (i1 - i2)
             (VInt    i1, VDouble d2) -> return $ VDouble (fromIntegral i1 - d2)
             (VDouble d1, VInt i2   ) -> return $ VDouble (d1 - fromIntegral i2)
             (VDouble d1, VDouble d2) -> return $ VDouble (d1 - d2)
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be numeric type (int or real)"
     Mul s1 s2 -> do
-        s1e <- evalNumExpr s1
-        s2e <- evalNumExpr s2
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
         case (s1e, s2e) of
             (VInt    i1, VInt i2   ) -> return $ VInt (i1 * i2)
             (VInt    i1, VDouble d2) -> return $ VDouble (fromIntegral i1 * d2)
             (VDouble d1, VInt i2   ) -> return $ VDouble (d1 * fromIntegral i2)
             (VDouble d1, VDouble d2) -> return $ VDouble (d1 * d2)
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be numeric type (int or real)"
     Div s1 s2 -> do
-        s1e <- evalNumExpr s1
-        s2e <- evalNumExpr s2
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
         case (s1e, s2e) of
             (VInt    i1, VInt i2   ) -> return $ VInt (i1 `quot` i2)
             (VInt    i1, VDouble d2) -> return $ VDouble (fromIntegral i1 / d2)
             (VDouble d1, VInt i2   ) -> return $ VDouble (d1 / fromIntegral i2)
             (VDouble d1, VDouble d2) -> return $ VDouble (d1 / d2)
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be numeric type (int or real)"
+    Mod s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VInt i2) -> return $ VInt (i1 `mod'` i2)
+            (VInt i1, VDouble d2) ->
+                return $ VDouble $ (fromIntegral i1 `mod'` d2)
+            (VDouble d1, VInt i2) ->
+                return $ VDouble $ (d1 `mod'` fromIntegral i2)
+            (VDouble d1, VDouble d2) -> return $ VDouble (d1 `mod'` d2)
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be numeric type (int or real)"
+    BTrue    -> return $ VBool True
+    BFalse   -> return $ VBool False
+    Eq s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VDouble d2) ->
+                return $ VBool (abs (fromIntegral i1 - d2) < 0.00001)
+            (VDouble d1, VInt i2) ->
+                return $ VBool (abs (d1 - fromIntegral i2) < 0.00001)
+            (VDouble d1, VDouble d2) ->
+                return $ VBool (abs (d1 - d2) < 0.00001)
+            _ -> return $ VBool $ s1e == s2e
+    NotEq s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VDouble d2) ->
+                return $ VBool (abs (fromIntegral i1 - d2) >= 0.00001)
+            (VDouble d1, VInt i2) ->
+                return $ VBool (abs (d1 - fromIntegral i2) >= 0.00001)
+            (VDouble d1, VDouble d2) ->
+                return $ VBool (abs (d1 - d2) >= 0.00001)
+            _ -> return $ VBool $ s1e /= s2e
+    GreaterThan s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        return $ VBool $ s1e > s2e
+    LessThan s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        return $ VBool $ s1e < s2e
+    GreaterThanEq s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VDouble d2) ->
+                return $ VBool
+                    (s1e > s2e || (abs (fromIntegral i1 - d2) < 0.00001))
+            (VDouble d1, VInt i2) ->
+                return $ VBool
+                    (s1e > s2e || (abs (d1 - fromIntegral i2) < 0.00001))
+            (VDouble d1, VDouble d2) ->
+                return $ VBool (s1e > s2e || (abs (d1 - d2) < 0.00001))
+            _ -> return $ VBool $ s1e >= s2e
+    LessThanEq s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VDouble d2) ->
+                return $ VBool
+                    (s1e < s2e || (abs (fromIntegral i1 - d2) < 0.00001))
+            (VDouble d1, VInt i2) ->
+                return $ VBool
+                    (s1e < s2e || (abs (d1 - fromIntegral i2) < 0.00001))
+            (VDouble d1, VDouble d2) ->
+                return $ VBool (s1e < s2e || (abs (d1 - d2) < 0.00001))
+            _ -> return $ VBool $ s1e <= s2e
+    Not s1 -> do
+        s1e <- evalExpr s1
+        case s1e of
+            VBool b -> return $ VBool $ not b
+            VInt i -> return $ VInt $ complement i
+            _ -> error $ "Expected ->" ++ show s1e ++ "<- to be boolean or int"
+    Or s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VBool b1, VBool b2) -> return $ VBool $ b1 || b2
+            (VInt  i1, VInt i2 ) -> return $ VInt $ i1 .|. i2
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be boolean or int"
+    -- TODO: Should not be the same as or
+    OrElse s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VBool b1, VBool b2) -> return $ VBool $ b1 || b2
+            (VInt  i1, VInt i2 ) -> return $ VInt $ i1 .|. i2
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be boolean or int"
+    And s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VBool b1, VBool b2) -> return $ VBool $ b1 && b2
+            (VInt  i1, VInt i2 ) -> return $ VInt $ i1 .&. i2
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be boolean or int"
+    -- TODO: Should not be the same as and
+    AndThen s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VBool b1, VBool b2) -> return $ VBool $ b1 && b2
+            (VInt  i1, VInt i2 ) -> return $ VInt $ i1 .&. i2
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be boolean or int"
+    Xor s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VBool b1, VBool b2) -> return $ VBool $ booleanXor b1 b2
+            (VInt  i1, VInt i2 ) -> return $ VInt $ xor i1 i2
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be boolean or int"
+    -- TODO: Implement shift left and shift right
+    StringLiteral sl   -> return $ VString sl
+    StringConcat s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VString sl1, VString sl2) ->
+                return $ VString $ pack $ unpack sl1 ++ unpack sl2
+            _ ->
+                error
+                    $  "Expected ->"
+                    ++ show s1e
+                    ++ "<- and ->"
+                    ++ show s2e
+                    ++ "<- to be string"
+
+booleanXor :: Bool -> Bool -> Bool
+booleanXor True  p = not p
+booleanXor False p = p
 ---------- EXPR END ----------

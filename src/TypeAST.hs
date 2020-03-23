@@ -8,12 +8,12 @@ import           TypeValue
 
 data AST
     = Node String AST AST
-    | ProgBlock [Impl]
+    | ProgBlock [Statement]
     | VarBlock [VarDef]
     | Nil
     deriving (Show)
 
-type VarDef = ([Text], VarType, Maybe GenExpr)
+type VarDef = ([Text], VarType, Maybe Expr)
 data VarType
      = BoolType
      | IntType
@@ -22,39 +22,39 @@ data VarType
      | EnumType String
      deriving (Show, Eq)
 
-data Impl
-    = Assign (Text, GenExpr)
-    | Writeln [GenExpr]
+data Statement
+    = Assign (Text, Expr)
+    | Writeln [Expr]
     | Readln [Text]
     deriving (Show)
-
-data GenExpr = NumExpr NumExpr | BoolExpr BoolExpr | StringExpr StringExpr deriving (Show)
-
-data StringExpr
-    = SVar Text
-    | StringE Text
-    | Concat StringExpr StringExpr
-    deriving (Eq, Ord, Show)
-
-data NumExpr
-    = NVar Text
+data Expr
+    = Var Text
     | Int Int
     | Double Double
-    | Neg NumExpr
-    | Sum NumExpr NumExpr
-    | Sub NumExpr NumExpr
-    | Mul NumExpr NumExpr
-    | Div NumExpr NumExpr
-    deriving (Eq, Ord, Show)
-
-data BoolExpr
-    = BVar Text
-    | Not BoolExpr
-    | Or BoolExpr BoolExpr
-    | And BoolExpr BoolExpr
-    | Xor BoolExpr BoolExpr
+    | Neg Expr
+    | Sum Expr Expr
+    | Sub Expr Expr
+    | Mul Expr Expr
+    | Div Expr Expr
+    | Mod Expr Expr
     | BFalse
     | BTrue
+    | Eq Expr Expr
+    | NotEq Expr Expr
+    | GreaterThan Expr Expr
+    | LessThan Expr Expr
+    | GreaterThanEq Expr Expr
+    | LessThanEq Expr Expr
+    | Not Expr
+    | Or Expr Expr
+    | OrElse Expr Expr
+    | And Expr Expr
+    | AndThen Expr Expr
+    | Xor Expr Expr
+    | ShiftLeft Expr Expr
+    | ShiftRight Expr Expr
+    | StringLiteral Text
+    | StringConcat Expr Expr
     deriving (Eq, Ord, Show)
 
 -- class ShowBase v where
