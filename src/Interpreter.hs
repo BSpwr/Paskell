@@ -213,9 +213,9 @@ evalExpr expr = case expr of
     Var t -> do
         (_, v) <- varGet t
         return $ valueExist v
-    Int    i -> return $ VInt i
-    Double d -> return $ VDouble d
-    Neg    n -> do
+    VExpr (Int    i) -> return $ VInt i
+    VExpr (Double d) -> return $ VDouble d
+    Neg   n          -> do
         n1e <- evalExpr n
         case n1e of
             VInt    ie -> return $ VInt (-ie)
@@ -302,9 +302,9 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be numeric type (int or real)"
-    BTrue    -> return $ VBool True
-    BFalse   -> return $ VBool False
-    Eq s1 s2 -> do
+    VExpr BTrue  -> return $ VBool True
+    VExpr BFalse -> return $ VBool False
+    Eq s1 s2     -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
         case (s1e, s2e) of
@@ -434,8 +434,8 @@ evalExpr expr = case expr of
                     ++ show s2e
                     ++ "<- to be boolean or int"
     -- TODO: Implement shift left and shift right
-    StringLiteral sl   -> return $ VString sl
-    StringConcat s1 s2 -> do
+    VExpr (StringLiteral sl) -> return $ VString sl
+    StringConcat s1 s2       -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
         case (s1e, s2e) of
@@ -448,6 +448,7 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be string"
+    _ -> error $ "Invalid expression ->" ++ show expr ++ "<-"
 
 booleanXor :: Bool -> Bool -> Bool
 booleanXor True  p = not p

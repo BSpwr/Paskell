@@ -28,19 +28,29 @@ data Statement
     | Writeln [Expr]
     | Readln [Text]
     | StatementIf Expr Statement (Maybe Statement)
+    | StatementCase Expr
     deriving (Show)
+
+data CaseLine = Expr Statement
+
+
+data ValueLiteral =
+    Int Int
+    | Double Double
+    | BFalse
+    | BTrue
+    | StringLiteral Text
+    deriving (Eq, Ord, Show)
+
 data Expr
     = Var Text
-    | Int Int
-    | Double Double
+    | VExpr ValueLiteral
     | Neg Expr
     | Sum Expr Expr
     | Sub Expr Expr
     | Mul Expr Expr
     | Div Expr Expr
     | Mod Expr Expr
-    | BFalse
-    | BTrue
     | Eq Expr Expr
     | NotEq Expr Expr
     | GreaterThan Expr Expr
@@ -55,7 +65,6 @@ data Expr
     | Xor Expr Expr
     | ShiftLeft Expr Expr
     | ShiftRight Expr Expr
-    | StringLiteral Text
     | StringConcat Expr Expr
     deriving (Eq, Ord, Show)
 

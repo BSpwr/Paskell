@@ -132,6 +132,10 @@ pIf = do
     s2   <- optional $ pRW_else >> pStatement
     return $ StatementIf expr s1 s2
 
+-- pCase :: Parser Statement
+-- pCase = do
+
+
 ---------- (RE)ASSIGN START ----------
 pAssign :: Parser Statement
 pAssign = do
@@ -170,35 +174,32 @@ pExprs = try a <|> b  where
 pVar :: Parser Expr
 pVar = Var <$> identifier
 
-pInteger :: Parser Expr
+pInteger :: Parser ValueLiteral
 pInteger = Int <$> signedInt
 
-pFloat :: Parser Expr
+pFloat :: Parser ValueLiteral
 pFloat = Double <$> signedDouble
 
-pFalse :: Parser Expr
+pFalse :: Parser ValueLiteral
 pFalse = pRW_false >> return BFalse
 
-pTrue :: Parser Expr
+pTrue :: Parser ValueLiteral
 pTrue = pRW_true >> return BTrue
 
-pStringLiteral :: Parser Expr
+pStringLiteral :: Parser ValueLiteral
 pStringLiteral =
     lexeme
         $   StringLiteral
         .   pack
         <$> (char '\'' *> manyTill L.charLiteral (char '\''))
 
+pValueLiteral :: Parser ValueLiteral
+pValueLiteral =
+    choice [try pFloat, try pInteger, try pFalse, try pTrue, try pStringLiteral]
+
 pTerm :: Parser Expr
-pTerm = choice
-    [ parens pExpr
-    , try pFloat
-    , try pInteger
-    , try pFalse
-    , try pTrue
-    , try pStringLiteral
-    , pVar
-    ]
+pTerm =
+    choice [parens pExpr, try pValueLiteral >>= \vl -> return $ VExpr vl, pVar]
 
 pExpr :: Parser Expr
 pExpr = makeExprParser pTerm operatorTable
