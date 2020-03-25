@@ -93,7 +93,34 @@ execStatement (StatementIf expr s1 s2) = do
                 ++ show ev
                 ++ "<-"
 
-execStatement (StatementBlock sb        ) = mapM_ execStatement sb
+execStatement (StatementBlock sb            ) = mapM_ execStatement sb
+
+execStatement (StatementWhile expr statement) = do
+    v <- evalExpr expr
+    case v of
+        VBool b -> if b
+            then
+                execStatement statement
+                    >> (execStatement $ StatementWhile expr statement)
+            else return ()
+        _ -> error "Expression for while loop must be boolean type"
+
+execStatement (StatementFor (t, ei) loopDir ef stat) = do
+    vi <- evalExpr ei
+    vf <- evalExpr ef
+    case (vi, vf) of
+        (VInt i, VInt f) ->
+            doAssign (t, vi) >> execForLoop stat (t, i, loopDir, f)
+        _ -> error "For loop variable must be integer type"
+
+execStatement (StatementRepeatUntil sb expr) = do
+    execStatement $ StatementBlock sb
+    v <- evalExpr expr
+    case v of
+        VBool b -> if b
+            then return ()
+            else execStatement $ StatementRepeatUntil sb expr
+        _ -> error "Expression for repeat until loop must be boolean type"
 
 execStatement (StatementCase expr cls ms) = do
     exprE <- evalExpr expr
@@ -103,6 +130,19 @@ execStatement (StatementCase expr cls ms) = do
         else case ms of
             Just s  -> Control.Monad.void $ execStatement s
             Nothing -> return ()
+
+execForLoop
+    :: Statement -> (Text, Int, ForLoopDirection, Int) -> PaskellState ()
+execForLoop stat (t, c, loopDir, f) = do
+    let (status, next) = case loopDir of
+            To     -> (c <= f, c + 1)
+            DownTo -> (c >= f, c - 1)
+    if status
+        then
+            doAssign (t, VInt c)
+            >> execStatement stat
+            >> (execForLoop stat (t, next, loopDir, f))
+        else return ()
 
 execCaseLines :: Value -> [CaseLine] -> PaskellState Bool
 execCaseLines val (cl : cls) = do

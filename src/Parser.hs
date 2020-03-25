@@ -123,8 +123,17 @@ pStatements = try a <|> b
         return [b1]
 
 pStatement :: Parser Statement
-pStatement =
-    choice [pStatementBlock, pIf, pCase, try pAssign, pReadln, pWriteln]
+pStatement = choice
+    [ pStatementBlock
+    , pIf
+    , pCase
+    , pWhileLoop
+    , pForLoop
+    , pRepeatUntilLoop
+    , try pAssign
+    , pReadln
+    , pWriteln
+    ]
 
 pIf :: Parser Statement
 pIf = do
@@ -157,6 +166,33 @@ pCaseLines = try a <|> b
 
 pCaseLine :: Parser CaseLine
 pCaseLine = pValueLiteralList >>= \vls -> col >> CaseLine vls <$> pStatement
+
+pWhileLoop :: Parser Statement
+pWhileLoop = do
+    expr <- between pRW_while pRW_do pExpr
+    stat <- pStatement
+    return $ StatementWhile expr stat
+
+pForLoop :: Parser Statement
+pForLoop = do
+    pRW_for
+    i <- identifier
+    col >> equ
+    ei      <- pExpr
+    loopDir <- pForLoopDir
+    ef      <- pExpr
+    pRW_do
+    stat <- pStatement
+    return $ StatementFor (i, ei) loopDir ef stat
+
+pForLoopDir :: Parser ForLoopDirection
+pForLoopDir = try (pRW_downto >> return DownTo) <|> (pRW_to >> return To)
+
+pRepeatUntilLoop :: Parser Statement
+pRepeatUntilLoop = do
+    statements <- between pRW_repeat ((optional semi) >> pRW_until) pStatements
+    expr       <- pExpr
+    return $ StatementRepeatUntil statements expr
 
 ---------- (RE)ASSIGN START ----------
 pAssign :: Parser Statement
@@ -302,6 +338,13 @@ rws =
     , "case"
     , "otherwise"
     , "of"
+    , "while"
+    , "for"
+    , "do"
+    , "to"
+    , "downto"
+    , "repeat"
+    , "until"
     ]
 
 pRW_var = rword "var"
@@ -322,6 +365,13 @@ pRW_else = rword "else"
 pRW_case = rword "case"
 pRW_otherwise = rword "otherwise"
 pRW_of = rword "of"
+pRW_while = rword "while"
+pRW_for = rword "for"
+pRW_do = rword "do"
+pRW_downto = rword "downto"
+pRW_to = rword "to"
+pRW_repeat = rword "repeat"
+pRW_until = rword "until"
 
 rword :: Text -> Parser Text
 rword w = if w `elem` rws

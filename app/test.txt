@@ -2,8 +2,10 @@ program tester
 var gee : string = 'st' ++ 'ring';;;;;;;
 dee : string;;;;;;
 ADC : integer = 5;
-a,b,c : real;
+a,b,c,i : real;
 d,e : boolean;
+number : integer = 10;
+sum : integer = 0;
 grade: string;
 begin
 grade := 'C';
@@ -14,6 +16,19 @@ d := false || ((false && false) || true);
 dee := gee ++ 'aaaa';;
 //readln(a, b);;
 writeln(grade);
+for i:= 1 to 4 do writeln(i);
+repeat
+   sum := sum + number;
+   number := number - 2;
+until number = 0;
+writeln(sum);
+number := 10;
+while number>0 do
+begin
+   sum := sum + number;
+   number := number - 2
+end;
+writeln(sum);
 case (grade) of
     'A' : writeln('Excellent!' );
     'B', 'C': writeln('Well done' );

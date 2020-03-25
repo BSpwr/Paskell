@@ -22,6 +22,8 @@ data VarType
      | EnumType String
      deriving (Show, Eq)
 
+data ForLoopDirection = To | DownTo deriving (Show, Enum)
+
 data Statement
     = StatementBlock [Statement]
     | Assign (Text, Expr)
@@ -29,6 +31,9 @@ data Statement
     | Readln [Text]
     | StatementIf Expr Statement (Maybe Statement)
     | StatementCase Expr [CaseLine] (Maybe Statement)
+    | StatementWhile Expr Statement
+    | StatementFor (Text, Expr) ForLoopDirection Expr Statement
+    | StatementRepeatUntil [Statement] Expr
     deriving (Show)
 
 data CaseLine
@@ -67,7 +72,7 @@ data Expr
     | ShiftLeft Expr Expr
     | ShiftRight Expr Expr
     | StringConcat Expr Expr
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Show)
 
 -- class ShowBase v where
 
