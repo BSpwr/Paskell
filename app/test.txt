@@ -6,7 +6,7 @@ a,b,c : real;
 d,e : boolean;
 grade: string;
 begin
-grade := 'Z';
+grade := 'C';
 a := 3 + 5;;;;;;;;;;;
 b := 6.54 + 434343;
 c := a + b;
@@ -14,7 +14,7 @@ d := false || ((false && false) || true);
 dee := gee ++ 'aaaa';;
 //readln(a, b);;
 writeln(grade);
-case (a) of
+case (grade) of
     'A' : writeln('Excellent!' );
     'B', 'C': writeln('Well done' );
     'D' : writeln('You passed' );
