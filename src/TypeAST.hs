@@ -28,11 +28,12 @@ data Statement
     | Writeln [Expr]
     | Readln [Text]
     | StatementIf Expr Statement (Maybe Statement)
-    | StatementCase Expr
+    | StatementCase Expr [CaseLine] (Maybe Statement)
     deriving (Show)
 
-data CaseLine = Expr Statement
-
+data CaseLine
+    = CaseLine [ValueLiteral] Statement
+    deriving (Show)
 
 data ValueLiteral =
     Int Int

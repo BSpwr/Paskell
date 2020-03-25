@@ -123,7 +123,8 @@ pStatements = try a <|> b
         return [b1]
 
 pStatement :: Parser Statement
-pStatement = choice [pStatementBlock, pIf, try pAssign, pReadln, pWriteln]
+pStatement =
+    choice [pStatementBlock, pIf, pCase, try pAssign, pReadln, pWriteln]
 
 pIf :: Parser Statement
 pIf = do
@@ -132,9 +133,30 @@ pIf = do
     s2   <- optional $ pRW_else >> pStatement
     return $ StatementIf expr s1 s2
 
--- pCase :: Parser Statement
--- pCase = do
+pCase :: Parser Statement
+pCase = do
+    expr <- between pRW_case pRW_of pExpr
+    cls  <- pCaseLines
+    optional semi
+    ms <- optional $ ((pRW_else <|> pRW_otherwise) >> pStatement)
+    optional semi
+    pRW_end
+    return $ StatementCase expr cls ms
 
+pCaseLines :: Parser [CaseLine]
+pCaseLines = try a <|> b
+  where
+    a = do
+        a1 <- pCaseLine
+        semi
+        a2 <- pCaseLines
+        return (a1 : a2)
+    b = do
+        b1 <- pCaseLine
+        return [b1]
+
+pCaseLine :: Parser CaseLine
+pCaseLine = pValueLiteralList >>= \vls -> col >> CaseLine vls <$> pStatement
 
 ---------- (RE)ASSIGN START ----------
 pAssign :: Parser Statement
@@ -197,6 +219,17 @@ pValueLiteral :: Parser ValueLiteral
 pValueLiteral =
     choice [try pFloat, try pInteger, try pFalse, try pTrue, try pStringLiteral]
 
+pValueLiteralList :: Parser [ValueLiteral]
+pValueLiteralList = try a <|> b  where
+    a = do
+        a1 <- pValueLiteral
+        com
+        a2 <- pValueLiteralList
+        return (a1 : a2)
+    b = do
+        b1 <- pValueLiteral
+        return [b1]
+
 pTerm :: Parser Expr
 pTerm =
     choice [parens pExpr, try pValueLiteral >>= \vl -> return $ VExpr vl, pVar]
@@ -205,10 +238,10 @@ pExpr :: Parser Expr
 pExpr = makeExprParser pTerm operatorTable
 
 binary :: Text -> (Expr -> Expr -> Expr) -> Operator Parser Expr
-binary name f = InfixL (f <$ symbol name)
+binary name f = InfixL (f <$ symbol' name)
 prefix, postfix :: Text -> (Expr -> Expr) -> Operator Parser Expr
-prefix name f = Prefix (f <$ symbol name)
-postfix name f = Postfix (f <$ symbol name)
+prefix name f = Prefix (f <$ symbol' name)
+postfix name f = Postfix (f <$ symbol' name)
 
 binaryNotFollowedBy
     :: Text -> Text -> (Expr -> Expr -> Expr) -> Operator Parser Expr
@@ -216,7 +249,7 @@ binaryNotFollowedBy name next f = InfixL (f <$ opNotFollowedBy name next)
 
 opNotFollowedBy :: Text -> Text -> Parser Text
 opNotFollowedBy name next =
-    (lexeme . try) (string name <* notFollowedBy (symbol next))
+    (lexeme . try) (symbol' name <* notFollowedBy (symbol' next))
 
 operatorTable :: [[Operator Parser Expr]]
 operatorTable =
@@ -266,6 +299,9 @@ rws =
     , "if"
     , "then"
     , "else"
+    , "case"
+    , "otherwise"
+    , "of"
     ]
 
 pRW_var = rword "var"
@@ -284,6 +320,8 @@ pRW_if = rword "if"
 pRW_then = rword "then"
 pRW_else = rword "else"
 pRW_case = rword "case"
+pRW_otherwise = rword "otherwise"
+pRW_of = rword "of"
 
 rword :: Text -> Parser Text
 rword w = if w `elem` rws

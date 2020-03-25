@@ -93,7 +93,32 @@ execStatement (StatementIf expr s1 s2) = do
                 ++ show ev
                 ++ "<-"
 
-execStatement (StatementBlock sb) = mapM_ execStatement sb
+execStatement (StatementBlock sb        ) = mapM_ execStatement sb
+
+execStatement (StatementCase expr cls ms) = do
+    exprE <- evalExpr expr
+    b     <- execCaseLines exprE cls
+    if b
+        then return ()
+        else case ms of
+            Just s  -> Control.Monad.void $ execStatement s
+            Nothing -> return ()
+
+execCaseLines :: Value -> [CaseLine] -> PaskellState Bool
+execCaseLines val (cl : cls) = do
+    b <- execCaseLine val cl
+    if b then return True else execCaseLines val cls
+
+execCaseLines val [] = return False
+
+execCaseLine :: Value -> CaseLine -> PaskellState Bool
+execCaseLine val (CaseLine vls stat) = if checkIfExistInValueList val vls
+    then execStatement stat >> return True
+    else return False
+
+checkIfExistInValueList :: Value -> [ValueLiteral] -> Bool
+checkIfExistInValueList val vls = elem val vs
+    where vs = map evalValueLiteral vls
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do
@@ -178,11 +203,11 @@ doAssign (t, v) = do
         VDouble d -> if valueMatch vt (Just v)
             then put (Map.insert t (vt, Just v) varTable)
             else error $ "Expected ->" ++ show t ++ "<- to be double type"
-        VString t -> if valueMatch vt (Just v)
+        VString s -> if valueMatch vt (Just v)
             then put (Map.insert t (vt, Just v) varTable)
             else error $ "Expected ->" ++ show t ++ "<- to be string type"
         -- TODO: Properly handle enums
-        VEnum t -> if valueMatch vt (Just v)
+        VEnum en -> if valueMatch vt (Just v)
             then put (Map.insert t (vt, Just v) varTable)
             else error $ "Expected ->" ++ show t ++ "<- to be enum type"
 
@@ -208,14 +233,21 @@ valueMatch vt mv = case mv of
     Nothing -> False
 
 ---------- EXPR START ----------
+
+evalValueLiteral :: ValueLiteral -> Value
+evalValueLiteral (Int    i)         = VInt i
+evalValueLiteral (Double d)         = VDouble d
+evalValueLiteral BTrue              = VBool True
+evalValueLiteral BFalse             = VBool False
+evalValueLiteral (StringLiteral sl) = VString sl
+
 evalExpr :: Expr -> PaskellState Value
 evalExpr expr = case expr of
     Var t -> do
         (_, v) <- varGet t
         return $ valueExist v
-    VExpr (Int    i) -> return $ VInt i
-    VExpr (Double d) -> return $ VDouble d
-    Neg   n          -> do
+    VExpr vl -> return $ evalValueLiteral vl
+    Neg   n  -> do
         n1e <- evalExpr n
         case n1e of
             VInt    ie -> return $ VInt (-ie)
@@ -302,9 +334,7 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be numeric type (int or real)"
-    VExpr BTrue  -> return $ VBool True
-    VExpr BFalse -> return $ VBool False
-    Eq s1 s2     -> do
+    Eq s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
         case (s1e, s2e) of
@@ -434,8 +464,7 @@ evalExpr expr = case expr of
                     ++ show s2e
                     ++ "<- to be boolean or int"
     -- TODO: Implement shift left and shift right
-    VExpr (StringLiteral sl) -> return $ VString sl
-    StringConcat s1 s2       -> do
+    StringConcat s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
         case (s1e, s2e) of
