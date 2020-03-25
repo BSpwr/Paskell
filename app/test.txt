@@ -11,10 +11,14 @@ c := a + b;
 d := false || ((false && false) || true);
 dee := gee ++ 'aaaa';;
 //readln(a, b);;
-if true = false then
-    writeln('yeet')
+if 'aa' = 'aa' then
+    begin
+    c := 21;
+    writeln('hahaha')
+    end
 else
     writeln('nooo');
+writeln(c);
 writeln('nut' = 'nut');
 writeln('lol ', 5 + 2, true && false, a, b, c, d, ' ' ++ gee);;;;
 end

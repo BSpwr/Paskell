@@ -1,6 +1,7 @@
 module Interpreter where
 
 import           Control.Monad.State
+import           Control.Monad
 import           Control.Monad.IO.Class
 
 import           Data.Map.Strict                ( Map )
@@ -17,6 +18,7 @@ import           Data.Text                      ( Text
                                                 )
 import           Data.Maybe                     ( maybe
                                                 , Maybe(..)
+                                                , isNothing
                                                 )
 
 import           TypeAST
@@ -62,8 +64,8 @@ readString :: IO String
 readString = getLine
 
 interpret :: AST -> PaskellState ()
-interpret (VarBlock  vb                 ) = mapM_ iVarDef vb
-interpret (ProgBlock (StatementBlock sb)) = mapM_ execStatement sb
+interpret (VarBlock  vb) = mapM_ iVarDef vb
+interpret (ProgBlock sb) = execStatement sb
 
 execStatement :: Statement -> PaskellState ()
 execStatement (Assign (t, expr)) = do
@@ -80,14 +82,18 @@ execStatement (Readln varNames       ) = mapM_ storeValueFromStdin varNames
 execStatement (StatementIf expr s1 s2) = do
     ev <- evalExpr expr
     case ev of
-        VBool b -> do
-            if b == True
-                then execStatement s1 >> return ()
-                else case s2 of
-                    Just s -> do
-                        execStatement s >> return ()
-                    Nothing -> return ()
-        _ -> error "Expression for if statement must be boolean type"
+        VBool b -> if b
+            then Control.Monad.void $ execStatement s1
+            else case s2 of
+                Just s  -> Control.Monad.void $ execStatement s
+                Nothing -> return ()
+        _ ->
+            error
+                $ "Expecting boolean type expression for if statement, instead received ->"
+                ++ show ev
+                ++ "<-"
+
+execStatement (StatementBlock sb) = mapM_ execStatement sb
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do
@@ -121,7 +127,16 @@ varListInsert
     :: (VarType, Maybe Value) -> Text -> PaskellState (VarType, Maybe Value)
 varListInsert (vt, mv) t = do
     varTable <- get
-    put (Map.insert t (vt, mv) varTable)
+    if valueMatch vt mv || isNothing mv
+        then put (Map.insert t (vt, mv) varTable)
+        else
+            liftIO
+            $  error
+            $  "Variable type ->"
+            ++ show vt
+            ++ "<- does not match assignment type ->"
+            ++ show mv
+            ++ "<-"
     return (vt, mv)
 ---------- VAR BLOCK START ----------
 

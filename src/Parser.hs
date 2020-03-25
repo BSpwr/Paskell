@@ -234,8 +234,8 @@ operatorTable =
     , [ binary "="  Eq
       , binary "<>" NotEq
       , binary "!=" NotEq
-      , binary ">"  GreaterThan
-      , binary "<"  LessThan
+      , binaryNotFollowedBy ">" "=" GreaterThan
+      , binaryNotFollowedBy "<" "=" LessThan
       , binary ">=" GreaterThanEq
       , binary "<=" LessThanEq
       ]
@@ -282,6 +282,7 @@ pRW_readln = rword "readln"
 pRW_if = rword "if"
 pRW_then = rword "then"
 pRW_else = rword "else"
+pRW_case = rword "case"
 
 rword :: Text -> Parser Text
 rword w = if w `elem` rws
