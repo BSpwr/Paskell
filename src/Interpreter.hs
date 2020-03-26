@@ -1,6 +1,9 @@
 module Interpreter where
 
-import           Control.Monad
+import           Control.Monad                  ( void
+                                                , when
+                                                , unless
+                                                )
 import           Control.Monad.State
 import           Control.Monad.IO.Class
 
@@ -83,9 +86,9 @@ execStatement (StatementIf expr s1 s2) = do
     ev <- evalExpr expr
     case ev of
         VBool b -> if b
-            then Control.Monad.void $ execStatement s1
+            then void $ execStatement s1
             else case s2 of
-                Just s  -> Control.Monad.void $ execStatement s
+                Just s  -> void $ execStatement s
                 Nothing -> return ()
         _ ->
             error
@@ -98,11 +101,10 @@ execStatement (StatementBlock sb            ) = mapM_ execStatement sb
 execStatement (StatementWhile expr statement) = do
     v <- evalExpr expr
     case v of
-        VBool b -> if b
-            then
-                execStatement statement
-                    >> (execStatement $ StatementWhile expr statement)
-            else return ()
+        VBool b ->
+            when b
+                $  execStatement statement
+                >> (execStatement (StatementWhile expr statement))
         _ -> error "Expression for while loop must be boolean type"
 
 execStatement (StatementFor (t, ei) loopDir ef stat) = do
@@ -117,19 +119,15 @@ execStatement (StatementRepeatUntil sb expr) = do
     execStatement $ StatementBlock sb
     v <- evalExpr expr
     case v of
-        VBool b -> if b
-            then return ()
-            else execStatement $ StatementRepeatUntil sb expr
-        _ -> error "Expression for repeat until loop must be boolean type"
+        VBool b -> unless b $ execStatement $ StatementRepeatUntil sb expr
+        _       -> error "Expression for repeat until loop must be boolean type"
 
 execStatement (StatementCase expr cls ms) = do
     exprE <- evalExpr expr
     b     <- execCaseLines exprE cls
-    if b
-        then return ()
-        else case ms of
-            Just s  -> Control.Monad.void $ execStatement s
-            Nothing -> return ()
+    unless b $ case ms of
+        Just s  -> void $ execStatement s
+        Nothing -> return ()
 
 execForLoop
     :: Statement -> (Text, Int, ForLoopDirection, Int) -> PaskellState ()
@@ -137,12 +135,10 @@ execForLoop stat (t, c, loopDir, f) = do
     let (status, next) = case loopDir of
             To     -> (c <= f, c + 1)
             DownTo -> (c >= f, c - 1)
-    if status
-        then
-            doAssign (t, VInt c)
-            >> execStatement stat
-            >> (execForLoop stat (t, next, loopDir, f))
-        else return ()
+    when status
+        $  doAssign (t, VInt c)
+        >> execStatement stat
+        >> (execForLoop stat (t, next, loopDir, f))
 
 execCaseLines :: Value -> [CaseLine] -> PaskellState Bool
 execCaseLines val (cl : cls) = do
