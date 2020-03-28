@@ -8,12 +8,15 @@ import           TypeValue
 
 data AST
     = Node String AST AST
+    | Block [BlockDef]
     | ProgBlock Statement
-    | VarBlock [VarDef]
     | Nil
     deriving (Show)
 
+data BlockDef = VarBlock [VarDef] | FuncBlock [Function] deriving (Show)
+
 type VarDef = ([Text], VarType, Maybe Expr)
+
 data VarType
      = BoolType
      | IntType
@@ -23,6 +26,11 @@ data VarType
      deriving (Show, Eq)
 
 data ForLoopDirection = To | DownTo deriving (Show, Enum)
+
+type FuncParam = ([Text], VarType)
+type FuncReturnType = Maybe VarType
+data FunctionDec = FunctionDec Text [FuncParam] FuncReturnType deriving (Show)
+data Function = Function FunctionDec [BlockDef] Statement deriving (Show)
 
 data Statement
     = StatementBlock [Statement]

@@ -27,15 +27,19 @@ import           Data.Maybe                     ( maybe
 import           TypeAST
 import           TypeValue
 
-type PaskellState = StateT VarTable IO
+type PaskellState = StateT InterpreterState IO
+
+type InterpreterState = (FuncTable, VarTable)
+
+type FuncTable = Map Text Function
 
 type VarTable = Map Text (VarType, Maybe Value)
 
 -- clearState :: PaskellState ()
 -- clearState = put Map.empty
 
-interpreterRun :: AST -> IO ()
-interpreterRun ast = evalStateT (interpreterStart ast) Map.empty
+interpreterRun :: AST -> IO InterpreterState
+interpreterRun ast = execStateT (interpreterStart ast) (Map.empty, Map.empty)
 
 interpreterStart :: AST -> PaskellState ()
 interpreterStart (Node "Root" a b) = do
@@ -67,8 +71,13 @@ readString :: IO String
 readString = getLine
 
 interpret :: AST -> PaskellState ()
-interpret (VarBlock  vb) = mapM_ varDef vb
-interpret (ProgBlock sb) = execStatement sb
+interpret (Block     blocks) = mapM_ execBlock blocks
+interpret (ProgBlock sb    ) = execStatement sb
+
+execBlock :: BlockDef -> PaskellState ()
+execBlock (VarBlock  vds  ) = mapM_ varDef vds
+
+execBlock (FuncBlock funcs) = mapM_ funcDef funcs
 
 execStatement :: Statement -> PaskellState ()
 execStatement (Assign (t, expr)) = do
@@ -111,9 +120,8 @@ execStatement (StatementFor (t, ei) loopDir ef stat) = do
     vi <- evalExpr ei
     vf <- evalExpr ef
     case (vi, vf) of
-        (VInt i, VInt f) ->
-            doAssign (t, vi) >> execForLoop stat (t, i, loopDir, f)
-        _ -> error "For loop variable must be integer type"
+        (VInt i, VInt f) -> execForLoop stat (t, i, loopDir, f)
+        _                -> error "For loop variable must be integer type"
 
 execStatement (StatementRepeatUntil sb expr) = do
     execStatement $ StatementBlock sb
@@ -158,10 +166,10 @@ checkIfExistInValueList val vls = val `elem` vs
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do
-    varTable <- get
-    (vt, mv) <- varGet t
-    v        <- liftIO $ readValue vt
-    put (Map.insert t (vt, Just v) varTable)
+    (funcTable, varTable) <- get
+    (vt       , mv      ) <- varGet t
+    v                     <- liftIO $ readValue vt
+    put (funcTable, Map.insert t (vt, Just v) varTable)
 
 printValue :: Value -> PaskellState ()
 printValue v = liftIO $ putStr $ showValue v
@@ -173,10 +181,16 @@ showValue (VDouble d) = show d
 showValue (VString s) = unpack s
 showValue (VEnum   e) = unpack e
 
----------- VAR BLOCK START ----------
+funcDef :: Function -> PaskellState ()
+funcDef func@(Function (FunctionDec name param retType) blocks stat) = do
+    (funcTable, varTable) <- get
+    put (Map.insert name func funcTable, varTable)
 
+---------- VAR BLOCK START ----------
 varDef :: VarDef -> PaskellState ()
-varDef v = modify $ varPureDef v
+varDef v = do
+    (funcTable, varTable) <- get
+    put (funcTable, varPureDef v varTable)
 
 varPureDef :: VarDef -> VarTable -> VarTable
 varPureDef v state = newVarTable
@@ -203,7 +217,9 @@ varListInsert (vt, mv, varTable) t = if valueMatch vt mv || isNothing mv
 ---------- VAR BLOCK START ----------
 
 varGet :: Text -> PaskellState (VarType, Maybe Value)
-varGet t = gets $ varPureGet t
+varGet t = do
+    (_, varTable) <- get
+    pure $ varPureGet t varTable
 
 varPureGet :: Text -> VarTable -> (VarType, Maybe Value)
 varPureGet t varTable = do
@@ -218,7 +234,9 @@ valueExist t = case t of
     Nothing -> error $ "Variable ->" ++ show t ++ "<- was never assigned"
 
 doAssign :: (Text, Value) -> PaskellState ()
-doAssign (t, v) = modify $ doPureAssign (t, v)
+doAssign (t, v) = do
+    (funcTable, varTable) <- get
+    put (funcTable, doPureAssign (t, v) varTable)
 
 doPureAssign :: (Text, Value) -> VarTable -> VarTable
 doPureAssign (t, v) varTable = case v of
@@ -277,7 +295,9 @@ evalValueLiteral BFalse             = VBool False
 evalValueLiteral (StringLiteral sl) = VString sl
 
 evalExpr :: Expr -> PaskellState Value
-evalExpr expr = gets $ evalPureExpr expr
+evalExpr expr = do
+    (_, varTable) <- get
+    pure $ evalPureExpr expr varTable
 
 evalPureExpr :: Expr -> VarTable -> Value
 evalPureExpr expr state = case expr of

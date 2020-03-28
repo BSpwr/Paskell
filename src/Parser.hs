@@ -13,6 +13,7 @@ import           Data.Text                      ( Text
                                                 )
 import           Data.Maybe                     ( maybe
                                                 , Maybe(..)
+                                                , fromMaybe
                                                 )
 import           Data.Void
 import           Text.Megaparsec         hiding ( State )
@@ -20,7 +21,6 @@ import           Text.Megaparsec.Char
 import           System.Environment
 import           Control.Monad.Combinators.Expr
 import qualified Data.Text                     as T
-import qualified Text.Megaparsec               as M
 import qualified Text.Megaparsec.Char.Lexer    as L
 
 import           TypeAST
@@ -33,24 +33,40 @@ pRun = pStart <* eof
 pStart :: Parser AST
 pStart = do
     pProgramHeader
-    a1 <- pVarBlocks
+    a1 <- optionalList pBlocks
     semi
     a2 <- pStatementBlock
     dot
-    return $ Node "Root" (VarBlock a1) (ProgBlock a2)
+    return $ Node "Root" (Block a1) (ProgBlock a2)
+
+optionalList :: Alternative f => f [a] -> f [a]
+optionalList f = fromMaybe [] <$> optional f
 
 pProgramHeader :: Parser Text
 pProgramHeader = try (pRW_program >> identifier) <|> pRW_program
 
+pBlocks :: Parser [BlockDef]
+pBlocks = try a <|> b  where
+    a = do
+        a1 <- pBlock
+        semi
+        a2 <- pBlocks
+        return (a1 : a2)
+    b = do
+        b1 <- pBlock
+        return [b1]
+
+pBlock :: Parser BlockDef
+pBlock = try (VarBlock <$> pVarBlocks) <|> (FuncBlock <$> pFuncDefBlock)
+
 ---------- VAR BLOCK WITH ASSIGNMENT START ----------
+
 pVarBlocks :: Parser [VarDef]
 pVarBlocks = try a <|> b  where
     a = do
-        pRW_var
-        a1 <- pVarDefs
+        a1 <- pRW_var >> pVarDefs
         semi
-        pRW_var
-        a2 <- pVarDefs
+        a2 <- pRW_var >> pVarDefs
         return (a1 ++ a2)
     b = pRW_var >> pVarDefs
 
@@ -100,6 +116,52 @@ pVarType =
         <|> (EnumType . unpack <$> identifier)
 ---------- VAL BLOCK WITH ASSIGNMENT END ----------
 
+pFuncDefBlock :: Parser [Function]
+pFuncDefBlock = try a <|> b  where
+    a = do
+        a1 <- pFunction
+        semi
+        a2 <- pFuncDefBlock
+        return $ a1 : a2
+    b = do
+        b1 <- pFunction
+        return [b1]
+
+pFunction :: Parser Function
+pFunction = do
+    funcDef <- try pFunctionDec <|> pProcedureDec
+    semi
+    blocks <- optionalList pBlocks
+    Function funcDef blocks <$> pStatementBlock
+
+pFunctionDec :: Parser FunctionDec
+pFunctionDec = do
+    name  <- pRW_function >> identifier
+    param <- optionalList $ parens pFunctionParam
+    col
+    FunctionDec name param . Just <$> pVarType
+
+pProcedureDec :: Parser FunctionDec
+pProcedureDec = do
+    name  <- pRW_procedure >> identifier
+    param <- optionalList $ parens pFunctionParam
+    return $ FunctionDec name param Nothing
+
+pFunctionParam :: Parser [FuncParam]
+pFunctionParam = try a <|> b  where
+    a = do
+        a1 <- pVarList
+        col
+        a2 <- pVarType
+        semi
+        a3 <- pFunctionParam
+        return $ (a1, a2) : a3
+    b = do
+        b1 <- pVarList
+        col
+        b2 <- pVarType
+        return [(b1, b2)]
+
 ---------- PROG BLOCK START ----------
 pStatementBlock :: Parser Statement
 pStatementBlock = do
@@ -147,7 +209,7 @@ pCase = do
     expr <- between pRW_case pRW_of pExpr
     cls  <- pCaseLines
     optional semi
-    ms <- optional $ ((pRW_else <|> pRW_otherwise) >> pStatement)
+    ms <- optional ((pRW_else <|> pRW_otherwise) >> pStatement)
     optional semi
     pRW_end
     return $ StatementCase expr cls ms
@@ -170,8 +232,7 @@ pCaseLine = pValueLiteralList >>= \vls -> col >> CaseLine vls <$> pStatement
 pWhileLoop :: Parser Statement
 pWhileLoop = do
     expr <- between pRW_while pRW_do pExpr
-    stat <- pStatement
-    return $ StatementWhile expr stat
+    StatementWhile expr <$> pStatement
 
 pForLoop :: Parser Statement
 pForLoop = do
@@ -182,8 +243,7 @@ pForLoop = do
     loopDir <- pForLoopDir
     ef      <- pExpr
     pRW_do
-    stat <- pStatement
-    return $ StatementFor (i, ei) loopDir ef stat
+    StatementFor (i, ei) loopDir ef <$> pStatement
 
 pForLoopDir :: Parser ForLoopDirection
 pForLoopDir = try (pRW_downto >> return DownTo) <|> (pRW_to >> return To)
@@ -191,8 +251,7 @@ pForLoopDir = try (pRW_downto >> return DownTo) <|> (pRW_to >> return To)
 pRepeatUntilLoop :: Parser Statement
 pRepeatUntilLoop = do
     statements <- between pRW_repeat ((optional semi) >> pRW_until) pStatements
-    expr       <- pExpr
-    return $ StatementRepeatUntil statements expr
+    StatementRepeatUntil statements <$> pExpr
 
 ---------- (RE)ASSIGN START ----------
 pAssign :: Parser Statement
@@ -205,16 +264,10 @@ pAssign = do
 
 ---------- IO START ----------
 pReadln :: Parser Statement
-pReadln = do
-    pRW_readln
-    vL <- parens pVarList
-    return $ Readln vL
+pReadln = Readln <$> (pRW_readln >> parens pVarList)
 
 pWriteln :: Parser Statement
-pWriteln = do
-    pRW_writeln
-    ex <- parens pExprs
-    return $ Writeln ex
+pWriteln = Writeln <$> (pRW_writeln >> parens pExprs)
 ---------- IO END ----------
 
 ---------- EXPR START ----------
@@ -345,6 +398,9 @@ rws =
     , "downto"
     , "repeat"
     , "until"
+    , "function"
+    , "procedure"
+    , "return"
     ]
 
 pRW_var = rword "var"
@@ -372,6 +428,9 @@ pRW_downto = rword "downto"
 pRW_to = rword "to"
 pRW_repeat = rword "repeat"
 pRW_until = rword "until"
+pRW_function = rword "function"
+pRW_procedure = rword "procedure"
+pRW_return = rword "return"
 
 rword :: Text -> Parser Text
 rword w = if w `elem` rws
@@ -381,7 +440,12 @@ rword w = if w `elem` rws
 identifier :: Parser Text
 identifier = (lexeme . try) (p >>= check)
   where
-    p = toLower . pack <$> ((:) <$> letterChar <*> M.many alphaNumChar)
+    p =
+        toLower
+            .   pack
+            <$> ((:) <$> letterChar <*> many
+                    (try alphaNumChar <|> (head . unpack <$> symbol' "_"))
+                )
     check x = if x `elem` rws
         then fail $ "keyword " ++ show x ++ " cannot be an identifier"
         else return x

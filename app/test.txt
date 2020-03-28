@@ -7,6 +7,12 @@ d,e : boolean;
 number : integer = 10;
 sum : integer = 0;
 grade: string;
+function hiddenNumber: integer;
+begin
+    hiddenNumber := num;
+end;
+//
+//
 begin
 grade := 'C';
 a := 3 + 5;;;;;;;;;;;

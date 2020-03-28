@@ -21,12 +21,15 @@ import           System.Environment
 import           Interpreter
 import           TypeAST
 
-type Parser = Parsec Void Text
-
+-- currently outputs final state after execution completes
+-- TODO: remove debugging before submitting
 main :: IO ()
 main = do
     fileName <- head <$> getArgs
     contents <- readFile fileName
     case runParser pRun fileName (pack contents) of
         Left  e -> putStrLn $ errorBundlePretty e
-        Right x -> interpreterRun x
+        Right x -> do
+            state <- interpreterRun x
+            putStrLn ""
+            print state
