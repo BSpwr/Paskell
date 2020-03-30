@@ -37,6 +37,7 @@ data Statement
     | Assign (Text, Expr)
     | Writeln [Expr]
     | Readln [Text]
+    | ProcCall Text [Expr]
     | StatementIf Expr Statement (Maybe Statement)
     | StatementCase Expr [CaseLine] (Maybe Statement)
     | StatementWhile Expr Statement

@@ -9,9 +9,13 @@ sum : integer = 0;
 grade: string;
 function hiddenNumber(grade2, gee2: string; sum2: integer): integer;
 begin
-    writeln(grade2);
-    sum2 := 15;
+    writeln('hii');
+    sum2 := sum2 + 42;
     hiddenNumber := sum2;
+end;
+procedure sayHello;
+begin
+     writeln('hello world!');
 end;
 //
 //
@@ -30,6 +34,8 @@ repeat
    number := number - 2;
 until number = 0;
 writeln(sum);
+sayHello;
+hiddenNumber(grade, gee, sum);
 writeln(hiddenNumber(grade, gee, sum));
 number := 10;
 while number>0 do

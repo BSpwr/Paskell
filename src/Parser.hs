@@ -196,6 +196,7 @@ pStatement = choice
     , try pAssign
     , pReadln
     , pWriteln
+    , pProcCall
     ]
 
 pIf :: Parser Statement
@@ -270,6 +271,10 @@ pReadln = Readln <$> (pRW_readln >> parens pVarList)
 pWriteln :: Parser Statement
 pWriteln = Writeln <$> (pRW_writeln >> parens pExprs)
 ---------- IO END ----------
+
+pProcCall :: Parser Statement
+pProcCall = identifier >>= \name ->
+    ProcCall name <$> optionalList (parens (optionalList pExprs))
 
 ---------- EXPR START ----------
 pExprs :: Parser [Expr]

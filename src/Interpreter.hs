@@ -35,23 +35,13 @@ type FuncTable = Map Text Function
 
 type VarTable = Map Text (VarType, Maybe Value)
 
--- clearState :: PaskellState ()
--- clearState = put Map.empty
-
 interpreterRun :: AST -> IO InterpreterState
 interpreterRun ast = execStateT (interpreterStart ast) (Map.empty, Map.empty)
 
 interpreterStart :: AST -> PaskellState ()
 interpreterStart (Node "Root" a b) = do
-    -- x <- liftIO readBool
-    -- liftIO $ print x
     interpret a
     interpret b
-    -- liftIO $ putStrLn "root"
-    -- varTable <- get
-    -- liftIO $ print varTable
-    -- liftIO $ putStrLn "\n"
-    -- liftIO $ print (Node "Root" a b)
 
 readValue :: VarType -> IO Value
 readValue vt = case vt of
@@ -137,6 +127,8 @@ execStatement (StatementCase expr cls ms) = do
         Just s  -> void $ execStatement s
         Nothing -> return ()
 
+execStatement (ProcCall name exprs) = execFunc name exprs >> return ()
+
 execForLoop
     :: Statement -> (Text, Int, ForLoopDirection, Int) -> PaskellState ()
 execForLoop stat (t, c, loopDir, f) = do
@@ -198,19 +190,6 @@ funcPureGet name funcTable = do
         Just func -> func
         Nothing ->
             error $ "Function ->" ++ show name ++ "<- was never declared"
-
----------- VAR BLOCK START ----------
---  :: VarDef -> PaskellState ()
--- varDef v = do
---     (funcTable, varTable) <- get
---     return newVarTable
---   where
---     (s, t, me         ) = v
---     (_, _, newVarTable) = foldl varListInsert (t, mv, varTable) s
---     mv                  = case me of
---         Just expr -> Just $ evalExpr expr
---         Nothing   -> Nothing
-
 
 ---------- VAR BLOCK START ----------
 varDef :: VarDef -> PaskellState ()
@@ -296,7 +275,7 @@ doPureAssign (t, mv) varTable = case mv of
     Just (VEnum en) -> if valueMatch vt mv
         then Map.insert t (vt, mv) varTable
         else error $ "Expected ->" ++ show t ++ "<- to be enum type"
-    Nothing -> Map.insert t (vt, Nothing) varTable
+    Nothing -> error $ "Variable ->" ++ show t ++ "<- cannot be set to Nothing"
     where (vt, _) = varPureGet t varTable
 
 valueMatch :: VarType -> Maybe Value -> Bool
