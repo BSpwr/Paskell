@@ -7,9 +7,11 @@ d,e : boolean;
 number : integer = 10;
 sum : integer = 0;
 grade: string;
-function hiddenNumber: integer;
+function hiddenNumber(grade2, gee2: string; sum2: integer): integer;
 begin
-    hiddenNumber := num;
+    writeln(grade2);
+    sum2 := 15;
+    hiddenNumber := sum2;
 end;
 //
 //
@@ -28,6 +30,7 @@ repeat
    number := number - 2;
 until number = 0;
 writeln(sum);
+writeln(hiddenNumber(grade, gee, sum));
 number := 10;
 while number>0 do
 begin

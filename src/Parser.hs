@@ -132,6 +132,7 @@ pFunction = do
     funcDef <- try pFunctionDec <|> pProcedureDec
     semi
     blocks <- optionalList pBlocks
+    optional semi
     Function funcDef blocks <$> pStatementBlock
 
 pFunctionDec :: Parser FunctionDec
@@ -282,8 +283,9 @@ pExprs = try a <|> b  where
         b1 <- pExpr
         return [b1]
 
-pVar :: Parser Expr
-pVar = Var <$> identifier
+pVarCall :: Parser Expr
+pVarCall = identifier >>= \name ->
+    VarCall name <$> optionalList (parens (optionalList pExprs))
 
 pInteger :: Parser ValueLiteral
 pInteger = Int <$> signedInt
@@ -320,8 +322,8 @@ pValueLiteralList = try a <|> b  where
         return [b1]
 
 pTerm :: Parser Expr
-pTerm =
-    choice [parens pExpr, try pValueLiteral >>= \vl -> return $ VExpr vl, pVar]
+pTerm = choice
+    [parens pExpr, try pValueLiteral >>= \vl -> return $ VExpr vl, pVarCall]
 
 pExpr :: Parser Expr
 pExpr = makeExprParser pTerm operatorTable
