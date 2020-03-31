@@ -10,5 +10,6 @@ data Value
     | VInt Int
     | VDouble Double
     | VString Text
-    | VEnum Text
+    | RawVEnum Text
+    | VEnum Text Text -- Name, EnumName
     deriving (Eq, Ord, Show)

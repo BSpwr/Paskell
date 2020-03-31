@@ -26,20 +26,24 @@ import           Data.Maybe                     ( maybe
                                                 , fromMaybe
                                                 )
 
+import           Debug.Trace
+
 import           TypeAST
 import           TypeValue
 
 type PaskellState = StateT InterpreterState IO
 
-type InterpreterState = (ConstTable, VarTable, FuncTable)
+type InterpreterState = (ConstTable, VarTable, TypeTable, FuncTable)
 
 type ConstTable = Map Text Value
 type VarTable = Map Text (VarType, Maybe Value)
+type TypeTable = Map Text [Text]
 type FuncTable = Map Text Function
 
 interpreterRun :: AST -> IO InterpreterState
-interpreterRun ast =
-    execStateT (interpreterStart ast) (Map.empty, Map.empty, Map.empty)
+interpreterRun ast = execStateT
+    (interpreterStart ast)
+    (Map.empty, Map.empty, Map.empty, Map.empty)
 
 interpreterStart :: AST -> PaskellState ()
 interpreterStart (Node "Root" a b) = do
@@ -52,7 +56,8 @@ readValue vt = case vt of
     IntType    -> VInt <$> readInt
     RealType   -> VDouble <$> readDouble
     StringType -> VString . pack <$> readString
-    EnumType s -> VEnum . pack <$> readString
+    EnumType enumType ->
+        readString >>= \name -> return $ VEnum (pack name) enumType
 
 readBool :: IO Bool
 readBool = readLn
@@ -71,6 +76,7 @@ execBlock :: BlockDef -> PaskellState ()
 execBlock (VarBlock   vds   ) = mapM_ varDef vds
 execBlock (ConstBlock consts) = mapM_ constDef consts
 execBlock (FuncBlock  funcs ) = mapM_ funcDef funcs
+execBlock (TypeBlock  types ) = mapM_ typeDef types
 
 execStatement :: Statement -> PaskellState ()
 execStatement (Assign (t, expr)) = do
@@ -161,29 +167,69 @@ checkIfExistInValueList val vls = val `elem` vs
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do
-    (constTable, varTable, funcTable) <- get
+    (constTable, varTable, typeTable, funcTable) <- get
     (vt, mv) <- varGet t
     v        <- liftIO $ readValue vt
-    put (constTable, Map.insert t (vt, Just v) varTable, funcTable)
+    -- if enum, perform typecheck prior to insertion
+    case v of
+        (VEnum name enumType) -> do
+            let mEnumeration = Map.lookup enumType typeTable
+            case mEnumeration of
+                Just enumeration -> if name `elem` enumeration
+                    then
+                        put
+                            ( constTable
+                            , Map.insert t (vt, Just v) varTable
+                            , typeTable
+                            , funcTable
+                            )
+                    else
+                        error
+                        $  "Enum value ->"
+                        ++ show name
+                        ++ "<- is not part of the enumeration ->"
+                        ++ show enumType
+                        ++ "<-"
+        _ ->
+            put
+                ( constTable
+                , Map.insert t (vt, Just v) varTable
+                , typeTable
+                , funcTable
+                )
 
 printValue :: Value -> PaskellState ()
 printValue v = liftIO $ putStr $ showValue v
 
 showValue :: Value -> String
-showValue (VBool   b) = show b
-showValue (VInt    i) = show i
-showValue (VDouble d) = show d
-showValue (VString s) = unpack s
-showValue (VEnum   e) = unpack e
+showValue (VBool    b         ) = show b
+showValue (VInt     i         ) = show i
+showValue (VDouble  d         ) = show d
+showValue (VString  s         ) = unpack s
+showValue (RawVEnum name      ) = unpack name
+showValue (VEnum name enumType) = unpack name
+
+typeDef :: TypeDef -> PaskellState ()
+typeDef (name, enumerations) = do
+    (constTable, varTable, typeTable, funcTable) <- get
+    if Map.notMember name typeTable
+        then
+            put
+                ( constTable
+                , varTable
+                , Map.insert name enumerations typeTable
+                , funcTable
+                )
+        else error $ "Type -> " ++ show name ++ "<- was previously defined"
 
 funcDef :: Function -> PaskellState ()
 funcDef func@(Function (FunctionDec name param retType) blocks stat) = do
-    (constTable, varTable, funcTable) <- get
-    put (constTable, varTable, Map.insert name func funcTable)
+    (constTable, varTable, typeTable, funcTable) <- get
+    put (constTable, varTable, typeTable, Map.insert name func funcTable)
 
 funcGet :: Text -> PaskellState (Function)
 funcGet name = do
-    (_, _, funcTable) <- get
+    (_, _, _, funcTable) <- get
     pure $ funcPureGet name funcTable
 
 funcPureGet :: Text -> FuncTable -> Function
@@ -198,48 +244,78 @@ funcPureGet name funcTable = do
 
 constDef :: ConstDef -> PaskellState ()
 constDef (name, vl) = do
-    (constTable, varTable, funcTable) <- get
-    put (Map.insert name (evalValueLiteral vl) constTable, varTable, funcTable)
+    (constTable, varTable, typeTable, funcTable) <- get
+    put
+        ( Map.insert name (evalValueLiteral vl) constTable
+        , varTable
+        , typeTable
+        , funcTable
+        )
 
 varDef :: VarDef -> PaskellState ()
 varDef v = do
-    (constTable, varTable, funcTable) <- get
+    (constTable, varTable, typeTable, funcTable) <- get
     let (s, t, me) = v
     mv <- case me of
         Just expr -> Just <$> evalExpr expr
         Nothing   -> return Nothing
-    let (_, _, newVarTable) = foldl varListInsert (t, mv, varTable) s
-    put (constTable, newVarTable, funcTable)
+    let (_, _, (_, newVarTable, _)) =
+            foldl varListInsert (t, mv, (constTable, varTable, typeTable)) s
+    put (constTable, newVarTable, typeTable, funcTable)
     -- TODO: Check if type and Value match
 
 varListInsert
-    :: (VarType, Maybe Value, VarTable)
+    :: (VarType, Maybe Value, (ConstTable, VarTable, TypeTable))
     -> Text
-    -> (VarType, Maybe Value, VarTable)
-varListInsert (vt, mv, varTable) t = do
+    -> (VarType, Maybe Value, (ConstTable, VarTable, TypeTable))
+varListInsert (vt, mv, (constTable, varTable, typeTable)) t = do
     let mvlookup = Map.lookup t varTable
     case mvlookup of
         Just vlookup -> error $ "Variable ->" ++ show t ++ "<- was redefined."
-        Nothing      -> if valueMatch vt mv || isNothing mv
-            then (vt, mv, Map.insert t (vt, mv) varTable)
-            else
-                error
-                $  "Variable type ->"
-                ++ show vt
-                ++ "<- does not match assignment type ->"
-                ++ show mv
-                ++ "<-"
+        Nothing      -> case (vt, mv) of
+            (EnumType enumType, Just (RawVEnum name)) -> do
+                let mEnumeration = Map.lookup enumType typeTable
+                case mEnumeration of
+                    Just enumeration -> if name `elem` enumeration
+                        then
+                            ( vt
+                            , mv
+                            , ( constTable
+                              , Map.insert t (vt, mv) varTable
+                              , typeTable
+                              )
+                            )
+                        else
+                            error
+                            $  "Enum value ->"
+                            ++ show name
+                            ++ "<- is not part of the enumeration ->"
+                            ++ show enumType
+                            ++ "<-"
+            (_, _) -> if valueMatch vt mv || isNothing mv
+                then
+                    ( vt
+                    , mv
+                    , (constTable, Map.insert t (vt, mv) varTable, typeTable)
+                    )
+                else
+                    error
+                    $  "Variable type ->"
+                    ++ show vt
+                    ++ "<- does not match assignment type ->"
+                    ++ show mv
+                    ++ "<-"
 
 ---------- VAR BLOCK START ----------
 
 varGet :: Text -> PaskellState (VarType, Maybe Value)
 varGet name = do
-    (constTable, varTable, _) <- get
+    (constTable, varTable, _, _) <- get
     pure $ varPureGet name (constTable, varTable)
 
 maybeVarGet :: Text -> PaskellState (Maybe (VarType, Maybe Value))
 maybeVarGet name = do
-    (constTable, varTable, _) <- get
+    (constTable, varTable, _, _) <- get
     pure $ maybeVarPureGet name (constTable, varTable)
 
 varPureGet :: Text -> (ConstTable, VarTable) -> (VarType, Maybe Value)
@@ -276,8 +352,51 @@ valueExist t = case t of
 
 doAssign :: (Text, Maybe Value) -> PaskellState ()
 doAssign (t, mv) = do
-    (constTable, varTable, funcTable) <- get
-    put (constTable, doPureAssign (t, mv) (constTable, varTable), funcTable)
+    (constTable, varTable, typeTable, funcTable) <- get
+        -- if enum, perform typecheck prior to insertion
+    let prevVar = maybeVarPureGet t (constTable, varTable)
+    case (prevVar, mv) of
+        ((Just ((EnumType enumType), oldVal)), Just (RawVEnum name)) -> do
+            let mEnumeration = Map.lookup enumType typeTable
+            case mEnumeration of
+                Just enumeration -> if name `elem` enumeration
+                    then put
+                        ( constTable
+                        , doPureAssign (t         , Just (VEnum name enumType))
+                                       (constTable, varTable)
+                        , typeTable
+                        , funcTable
+                        )
+                    else
+                        error
+                        $  "Enum value ->"
+                        ++ show name
+                        ++ "<- is not part of the enumeration ->"
+                        ++ show enumType
+                        ++ "<-"
+        (_, Just (VEnum name enumType)) -> do
+            let mEnumeration = Map.lookup enumType typeTable
+            case mEnumeration of
+                Just enumeration -> if name `elem` enumeration
+                    then put
+                        ( constTable
+                        , doPureAssign (t, mv) (constTable, varTable)
+                        , typeTable
+                        , funcTable
+                        )
+                    else
+                        error
+                        $  "Enum value ->"
+                        ++ show name
+                        ++ "<- is not part of the enumeration ->"
+                        ++ show enumType
+                        ++ "<-"
+        (_, _) -> put
+            ( constTable
+            , doPureAssign (t, mv) (constTable, varTable)
+            , typeTable
+            , funcTable
+            )
 
 doPureAssign :: (Text, Maybe Value) -> (ConstTable, VarTable) -> VarTable
 doPureAssign (t, mv) (constTable, varTable) = case mv of
@@ -299,8 +418,7 @@ doPureAssign (t, mv) (constTable, varTable) = case mv of
     Just (VString s) -> if valueMatch vt mv
         then Map.insert t (vt, mv) varTable
         else error $ "Expected ->" ++ show t ++ "<- to be string type"
-    -- TODO: Properly handle enums
-    Just (VEnum en) -> if valueMatch vt mv
+    Just (VEnum name enumType) -> if valueMatch vt mv
         then Map.insert t (vt, mv) varTable
         else error $ "Expected ->" ++ show t ++ "<- to be enum type"
     Nothing -> error $ "Variable ->" ++ show t ++ "<- cannot be set to Nothing"
@@ -322,20 +440,21 @@ valueMatch vt mv = case mv of
             StringType -> True
             _          -> False
             -- TODO: Properly handle enums
-        VEnum en -> case vt of
-            EnumType _ -> True
-            _          -> False
+        VEnum name enumType -> case vt of
+            EnumType enumType -> True
+            _                 -> False
+        RawVEnum name -> trace (unpack name) False
     Nothing -> False
 
 
 valueType :: Value -> VarType
 valueType val = case val of
-    VBool   b  -> BoolType
-    VInt    n  -> IntType
-    VDouble d  -> RealType
-    VString s  -> StringType
+    VBool   b           -> BoolType
+    VInt    n           -> IntType
+    VDouble d           -> RealType
+    VString s           -> StringType
         -- TODO: Properly handle enums
-    VEnum   en -> EnumType "taco"
+    VEnum name enumType -> EnumType enumType
 
 ---------- EXPR START ----------
 
@@ -348,7 +467,7 @@ evalValueLiteral (StringLiteral sl) = VString sl
 
 execFunc :: Text -> [Expr] -> PaskellState (Maybe Value)
 execFunc name callParam = do
-    (_, _, funcTable) <- get
+    (_, _, _, funcTable) <- get
     let f = funcPureGet name funcTable
     case f of
         Function (FunctionDec name paramList (Just returnType)) blocks stat ->
@@ -356,11 +475,12 @@ execFunc name callParam = do
             -- TODO: Create a new scope here
             -- execute
                 functionParamHandle callParam paramList
-                (constTable, varTable, funcTable) <- get
+                (constTable, varTable, typeTable, funcTable) <- get
                 -- expecting return value in variable with function name.
                 put
                     ( constTable
                     , Map.insert name (returnType, Nothing) varTable
+                    , typeTable
                     , funcTable
                     )
                 mapM_ execBlock blocks
@@ -388,10 +508,15 @@ functionParamHandle callParam funcParam = do
 
 injectFunctionParams :: [Value] -> [(Text, VarType)] -> PaskellState ()
 injectFunctionParams (v : vs) ((name, vt) : ps) = do
-    (constTable, varTable, funcTable) <- get
+    (constTable, varTable, typeTable, funcTable) <- get
     if valueMatch vt (Just v)
         then
-            put (constTable, Map.insert name (vt, Just v) varTable, funcTable)
+            put
+                    ( constTable
+                    , Map.insert name (vt, Just v) varTable
+                    , typeTable
+                    , funcTable
+                    )
                 >> injectFunctionParams vs ps
         else error "Function parameter type not matching"
 injectFunctionParams [] [] = return ()
@@ -404,13 +529,22 @@ expandFuncParam [] = []
 
 evalExpr :: Expr -> PaskellState Value
 evalExpr expr = case expr of
+    -- VarCall can be either a variable/constant, a function call, or an enum type
     VarCall name [] -> do
         mvg <- maybeVarGet name
         case mvg of
             Just (_, mv) -> case mv of
-                Just v  -> return v
-                Nothing -> valueExist <$> execFunc name []
-            Nothing -> valueExist <$> execFunc name []
+                Just v -> return v
+                Nothing ->
+                    error
+                        $  "Tried to use a variable ->"
+                        ++ show name
+                        ++ "<- that was not initialized"
+            Nothing -> do
+                (constTable, varTable, typeTable, funcTable) <- get
+                if Map.member name funcTable
+                    then valueExist <$> execFunc name []
+                    else return $ RawVEnum name
     VarCall name param ->
         snd <$> varGet name >>= \mv -> valueExist <$> execFunc name param
     VExpr vl -> return $ evalValueLiteral vl

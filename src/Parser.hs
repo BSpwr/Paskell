@@ -60,6 +60,7 @@ pBlock :: Parser BlockDef
 pBlock =
     (VarBlock <$> pVarBlocks)
         <|> (ConstBlock <$> pConstBlocks)
+        <|> (TypeBlock <$> pTypeBlocks)
         <|> (FuncBlock <$> pFuncDefBlock)
 
 ---------- VAR BLOCK WITH ASSIGNMENT START ----------
@@ -68,7 +69,7 @@ pConstBlocks = try a <|> b  where
     a = do
         a1 <- pRW_const >> pConstDefs
         semi
-        a2 <- pRW_const >> pConstDefs
+        a2 <- pConstBlocks
         return (a1 ++ a2)
     b = pRW_const >> pConstDefs
 
@@ -90,12 +91,39 @@ pConstDef = do
     a2 <- pValueLiteral
     return (a1, a2)
 
+pTypeBlocks :: Parser [TypeDef]
+pTypeBlocks = try a <|> b  where
+    a = do
+        a1 <- pRW_type >> pTypeDefs
+        semi
+        a2 <- pTypeBlocks
+        return (a1 ++ a2)
+    b = pRW_type >> pTypeDefs
+
+pTypeDefs :: Parser [TypeDef]
+pTypeDefs = try a <|> b  where
+    a = do
+        a1 <- pTypeDef
+        semi
+        a2 <- pTypeDefs
+        return (a1 : a2)
+    b = do
+        b1 <- pTypeDef
+        return [b1]
+
+pTypeDef :: Parser TypeDef
+pTypeDef = do
+    a1 <- identifier
+    equ
+    a2 <- parens pVarList
+    return (a1, a2)
+
 pVarBlocks :: Parser [VarDef]
 pVarBlocks = try a <|> b  where
     a = do
         a1 <- pRW_var >> pVarDefs
         semi
-        a2 <- pRW_var >> pVarDefs
+        a2 <- pVarBlocks
         return (a1 ++ a2)
     b = pRW_var >> pVarDefs
 
@@ -142,7 +170,7 @@ pVarType =
         <|> (pRW_integer >> return IntType)
         <|> (pRW_real >> return RealType)
         <|> (pRW_string >> return StringType)
-        <|> (EnumType . unpack <$> identifier)
+        <|> (EnumType <$> identifier)
 ---------- VAL BLOCK WITH ASSIGNMENT END ----------
 
 pFuncDefBlock :: Parser [Function]
@@ -411,6 +439,7 @@ rws :: [Text] -- list of reserved words
 rws =
     [ "const"
     , "var"
+    , "type"
     , "begin"
     , "end"
     , "program"
@@ -442,6 +471,7 @@ rws =
 
 pRW_const = rword "const"
 pRW_var = rword "var"
+pRW_type = rword "type"
 pRW_begin = rword "begin"
 pRW_end = rword "end"
 pRW_program = rword "program"
@@ -479,12 +509,11 @@ identifier :: Parser Text
 identifier = (lexeme . try) (p >>= check)
   where
     p =
-        toLower
-            .   pack
+        pack
             <$> ((:) <$> letterChar <*> many
                     (try alphaNumChar <|> (head . unpack <$> symbol' "_"))
                 )
-    check x = if x `elem` rws
+    check x = if (toLower x) `elem` rws
         then fail $ "keyword " ++ show x ++ " cannot be an identifier"
         else return x
 

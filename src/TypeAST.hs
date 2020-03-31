@@ -13,9 +13,11 @@ data AST
     | Nil
     deriving (Show)
 
-data BlockDef = VarBlock [VarDef] | FuncBlock [Function] | ConstBlock [ConstDef] deriving (Show)
+data BlockDef = VarBlock [VarDef] | FuncBlock [Function] | ConstBlock [ConstDef] | TypeBlock [TypeDef] deriving (Show)
 
 type VarDef = ([Text], VarType, Maybe Expr)
+-- TypeDef only handles enum custom types
+type TypeDef = (Text, [Text])
 type ConstDef = (Text, ValueLiteral)
 
 data VarType
@@ -23,7 +25,7 @@ data VarType
      | IntType
      | RealType
      | StringType
-     | EnumType String
+     | EnumType Text
      deriving (Show, Eq)
 
 data ForLoopDirection = To | DownTo deriving (Show, Enum)
