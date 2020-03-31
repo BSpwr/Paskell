@@ -57,9 +57,38 @@ pBlocks = try a <|> b  where
         return [b1]
 
 pBlock :: Parser BlockDef
-pBlock = try (VarBlock <$> pVarBlocks) <|> (FuncBlock <$> pFuncDefBlock)
+pBlock =
+    (VarBlock <$> pVarBlocks)
+        <|> (ConstBlock <$> pConstBlocks)
+        <|> (FuncBlock <$> pFuncDefBlock)
 
 ---------- VAR BLOCK WITH ASSIGNMENT START ----------
+pConstBlocks :: Parser [ConstDef]
+pConstBlocks = try a <|> b  where
+    a = do
+        a1 <- pRW_const >> pConstDefs
+        semi
+        a2 <- pRW_const >> pConstDefs
+        return (a1 ++ a2)
+    b = pRW_const >> pConstDefs
+
+pConstDefs :: Parser [ConstDef]
+pConstDefs = try a <|> b  where
+    a = do
+        a1 <- pConstDef
+        semi
+        a2 <- pConstDefs
+        return (a1 : a2)
+    b = do
+        b1 <- pConstDef
+        return [b1]
+
+pConstDef :: Parser ConstDef
+pConstDef = do
+    a1 <- identifier
+    equ
+    a2 <- pValueLiteral
+    return (a1, a2)
 
 pVarBlocks :: Parser [VarDef]
 pVarBlocks = try a <|> b  where
@@ -380,7 +409,8 @@ operatorTable =
 ---------- UTIL START ----------
 rws :: [Text] -- list of reserved words
 rws =
-    [ "var"
+    [ "const"
+    , "var"
     , "begin"
     , "end"
     , "program"
@@ -410,6 +440,7 @@ rws =
     , "return"
     ]
 
+pRW_const = rword "const"
 pRW_var = rword "var"
 pRW_begin = rword "begin"
 pRW_end = rword "end"

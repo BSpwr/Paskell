@@ -13,9 +13,10 @@ data AST
     | Nil
     deriving (Show)
 
-data BlockDef = VarBlock [VarDef] | FuncBlock [Function] deriving (Show)
+data BlockDef = VarBlock [VarDef] | FuncBlock [Function] | ConstBlock [ConstDef] deriving (Show)
 
 type VarDef = ([Text], VarType, Maybe Expr)
+type ConstDef = (Text, ValueLiteral)
 
 data VarType
      = BoolType

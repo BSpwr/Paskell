@@ -22,6 +22,8 @@ import           Data.Text                      ( Text
 import           Data.Maybe                     ( maybe
                                                 , Maybe(..)
                                                 , isNothing
+                                                , fromJust
+                                                , fromMaybe
                                                 )
 
 import           TypeAST
@@ -29,14 +31,15 @@ import           TypeValue
 
 type PaskellState = StateT InterpreterState IO
 
-type InterpreterState = (FuncTable, VarTable)
+type InterpreterState = (ConstTable, VarTable, FuncTable)
 
+type ConstTable = Map Text Value
+type VarTable = Map Text (VarType, Maybe Value)
 type FuncTable = Map Text Function
 
-type VarTable = Map Text (VarType, Maybe Value)
-
 interpreterRun :: AST -> IO InterpreterState
-interpreterRun ast = execStateT (interpreterStart ast) (Map.empty, Map.empty)
+interpreterRun ast =
+    execStateT (interpreterStart ast) (Map.empty, Map.empty, Map.empty)
 
 interpreterStart :: AST -> PaskellState ()
 interpreterStart (Node "Root" a b) = do
@@ -65,9 +68,9 @@ interpret (Block     blocks) = mapM_ execBlock blocks
 interpret (ProgBlock sb    ) = execStatement sb
 
 execBlock :: BlockDef -> PaskellState ()
-execBlock (VarBlock  vds  ) = mapM_ varDef vds
-
-execBlock (FuncBlock funcs) = mapM_ funcDef funcs
+execBlock (VarBlock   vds   ) = mapM_ varDef vds
+execBlock (ConstBlock consts) = mapM_ constDef consts
+execBlock (FuncBlock  funcs ) = mapM_ funcDef funcs
 
 execStatement :: Statement -> PaskellState ()
 execStatement (Assign (t, expr)) = do
@@ -158,10 +161,10 @@ checkIfExistInValueList val vls = val `elem` vs
 
 storeValueFromStdin :: Text -> PaskellState ()
 storeValueFromStdin t = do
-    (funcTable, varTable) <- get
-    (vt       , mv      ) <- varGet t
-    v                     <- liftIO $ readValue vt
-    put (funcTable, Map.insert t (vt, Just v) varTable)
+    (constTable, varTable, funcTable) <- get
+    (vt, mv) <- varGet t
+    v        <- liftIO $ readValue vt
+    put (constTable, Map.insert t (vt, Just v) varTable, funcTable)
 
 printValue :: Value -> PaskellState ()
 printValue v = liftIO $ putStr $ showValue v
@@ -175,12 +178,12 @@ showValue (VEnum   e) = unpack e
 
 funcDef :: Function -> PaskellState ()
 funcDef func@(Function (FunctionDec name param retType) blocks stat) = do
-    (funcTable, varTable) <- get
-    put (Map.insert name func funcTable, varTable)
+    (constTable, varTable, funcTable) <- get
+    put (constTable, varTable, Map.insert name func funcTable)
 
 funcGet :: Text -> PaskellState (Function)
 funcGet name = do
-    (funcTable, _) <- get
+    (_, _, funcTable) <- get
     pure $ funcPureGet name funcTable
 
 funcPureGet :: Text -> FuncTable -> Function
@@ -192,15 +195,21 @@ funcPureGet name funcTable = do
             error $ "Function ->" ++ show name ++ "<- was never declared"
 
 ---------- VAR BLOCK START ----------
+
+constDef :: ConstDef -> PaskellState ()
+constDef (name, vl) = do
+    (constTable, varTable, funcTable) <- get
+    put (Map.insert name (evalValueLiteral vl) constTable, varTable, funcTable)
+
 varDef :: VarDef -> PaskellState ()
 varDef v = do
-    (funcTable, varTable) <- get
+    (constTable, varTable, funcTable) <- get
     let (s, t, me) = v
     mv <- case me of
         Just expr -> Just <$> evalExpr expr
         Nothing   -> return Nothing
     let (_, _, newVarTable) = foldl varListInsert (t, mv, varTable) s
-    put (funcTable, newVarTable)
+    put (constTable, newVarTable, funcTable)
     -- TODO: Check if type and Value match
 
 varListInsert
@@ -224,22 +233,41 @@ varListInsert (vt, mv, varTable) t = do
 ---------- VAR BLOCK START ----------
 
 varGet :: Text -> PaskellState (VarType, Maybe Value)
-varGet t = do
-    (_, varTable) <- get
-    pure $ varPureGet t varTable
+varGet name = do
+    (constTable, varTable, _) <- get
+    pure $ varPureGet name (constTable, varTable)
 
 maybeVarGet :: Text -> PaskellState (Maybe (VarType, Maybe Value))
 maybeVarGet name = do
-    (_, varTable) <- get
-    pure $ Map.lookup name varTable
+    (constTable, varTable, _) <- get
+    pure $ maybeVarPureGet name (constTable, varTable)
 
-varPureGet :: Text -> VarTable -> (VarType, Maybe Value)
-varPureGet name varTable = do
+varPureGet :: Text -> (ConstTable, VarTable) -> (VarType, Maybe Value)
+varPureGet name (constTable, varTable) = do
+    let x = maybeVarPureGet name (constTable, varTable)
+    fromMaybe
+        (  error
+        $  "Constant or variable ->"
+        ++ show name
+        ++ "<- was never declared, or used a constant when a variable was expected"
+        )
+        x
+
+maybeVarPureGet
+    :: Text -> (ConstTable, VarTable) -> Maybe (VarType, Maybe Value)
+maybeVarPureGet name (constTable, varTable) = do
+    let c = Map.lookup name constTable
     let v = Map.lookup name varTable
-    case v of
-        Just v -> v
-        Nothing ->
-            error $ "Variable ->" ++ show name ++ "<- was never declared"
+    case (c, v) of
+        (Just jc, Just jv) ->
+            error
+                $  "Both a constant and a variable share the name ->"
+                ++ show name
+                ++ "<-"
+        (Nothing, Just jv) -> Just jv
+        (Just jc, Nothing) -> Just (valueType jc, Just jc)
+        (Nothing, Nothing) -> Nothing
+
 
 valueExist :: Maybe a -> a
 valueExist t = case t of
@@ -248,11 +276,11 @@ valueExist t = case t of
 
 doAssign :: (Text, Maybe Value) -> PaskellState ()
 doAssign (t, mv) = do
-    (funcTable, varTable) <- get
-    put (funcTable, doPureAssign (t, mv) varTable)
+    (constTable, varTable, funcTable) <- get
+    put (constTable, doPureAssign (t, mv) (constTable, varTable), funcTable)
 
-doPureAssign :: (Text, Maybe Value) -> VarTable -> VarTable
-doPureAssign (t, mv) varTable = case mv of
+doPureAssign :: (Text, Maybe Value) -> (ConstTable, VarTable) -> VarTable
+doPureAssign (t, mv) (constTable, varTable) = case mv of
     Just (VBool b) -> if valueMatch vt mv
         then Map.insert t (vt, mv) varTable
         else error $ "Expected ->" ++ show t ++ "<- to be boolean type"
@@ -276,7 +304,7 @@ doPureAssign (t, mv) varTable = case mv of
         then Map.insert t (vt, mv) varTable
         else error $ "Expected ->" ++ show t ++ "<- to be enum type"
     Nothing -> error $ "Variable ->" ++ show t ++ "<- cannot be set to Nothing"
-    where (vt, _) = varPureGet t varTable
+    where (vt, _) = varPureGet t (Map.empty, varTable)
 
 valueMatch :: VarType -> Maybe Value -> Bool
 valueMatch vt mv = case mv of
@@ -299,6 +327,16 @@ valueMatch vt mv = case mv of
             _          -> False
     Nothing -> False
 
+
+valueType :: Value -> VarType
+valueType val = case val of
+    VBool   b  -> BoolType
+    VInt    n  -> IntType
+    VDouble d  -> RealType
+    VString s  -> StringType
+        -- TODO: Properly handle enums
+    VEnum   en -> EnumType "taco"
+
 ---------- EXPR START ----------
 
 evalValueLiteral :: ValueLiteral -> Value
@@ -310,7 +348,7 @@ evalValueLiteral (StringLiteral sl) = VString sl
 
 execFunc :: Text -> [Expr] -> PaskellState (Maybe Value)
 execFunc name callParam = do
-    (funcTable, _) <- get
+    (_, _, funcTable) <- get
     let f = funcPureGet name funcTable
     case f of
         Function (FunctionDec name paramList (Just returnType)) blocks stat ->
@@ -318,9 +356,13 @@ execFunc name callParam = do
             -- TODO: Create a new scope here
             -- execute
                 functionParamHandle callParam paramList
-                (_, varTable) <- get
+                (constTable, varTable, funcTable) <- get
                 -- expecting return value in variable with function name.
-                put (funcTable, Map.insert name (returnType, Nothing) varTable)
+                put
+                    ( constTable
+                    , Map.insert name (returnType, Nothing) varTable
+                    , funcTable
+                    )
                 mapM_ execBlock blocks
                 execStatement stat
                 (_, mv) <- varGet name
@@ -346,10 +388,10 @@ functionParamHandle callParam funcParam = do
 
 injectFunctionParams :: [Value] -> [(Text, VarType)] -> PaskellState ()
 injectFunctionParams (v : vs) ((name, vt) : ps) = do
-    (funcTable, varTable) <- get
+    (constTable, varTable, funcTable) <- get
     if valueMatch vt (Just v)
         then
-            put (funcTable, Map.insert name (vt, Just v) varTable)
+            put (constTable, Map.insert name (vt, Just v) varTable, funcTable)
                 >> injectFunctionParams vs ps
         else error "Function parameter type not matching"
 injectFunctionParams [] [] = return ()

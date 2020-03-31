@@ -1,4 +1,7 @@
 program tester
+const
+PI = 3.141592654;
+NUT = 'sack';
 var gee : string = 'st' ++ 'ring';;;;;;;
 dee : string;;;;;;
 ADC : integer = 5;
@@ -34,10 +37,12 @@ repeat
    number := number - 2;
 until number = 0;
 writeln(sum);
+writeln(PI);
 sayHello;
 hiddenNumber(grade, gee, sum);
 writeln(hiddenNumber(grade, gee, sum));
 number := 10;
+writeln(NUT);
 while number>0 do
 begin
    sum := sum + number;
