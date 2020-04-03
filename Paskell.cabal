@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d5aab36695b0ff00fcbec3aea064183fc0e04521a8c43fe903a371cdce2f125b
+-- hash: 1c488e90c78958081ddbbdfdd97b17e26fc8cdc32471b59e6546c5d91a680236
 
 name:           Paskell
 version:        0.1.0.0
@@ -31,7 +31,6 @@ library
       Lib
       Parser
       TypeAST
-      TypeValue
   other-modules:
       Paths_Paskell
   hs-source-dirs:

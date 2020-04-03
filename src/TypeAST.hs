@@ -4,7 +4,11 @@ import           Data.Text                      ( Text
                                                 , unpack
                                                 , pack
                                                 )
-import           TypeValue
+import           Data.Map.Strict                ( Map )
+import qualified Data.Map.Strict               as Map
+
+import           Data.Stack                     ( Stack )
+import qualified Data.Stack                    as Stack
 
 data AST
     = Node String AST AST
@@ -46,6 +50,8 @@ data Statement
     | StatementWhile Expr Statement
     | StatementFor (Text, Expr) ForLoopDirection Expr Statement
     | StatementRepeatUntil [Statement] Expr
+    | StatementBreak
+    | StatementContinue
     deriving (Show)
 
 data CaseLine
@@ -87,5 +93,22 @@ data Expr
     | StringConcat Expr Expr
     deriving (Eq, Show)
 
--- class ShowBase v where
+type InterpreterState = (InterpreterContext, ContextStack)
+
+type ContextStack = Stack InterpreterContext
+type InterpreterContext = (ConstTable, VarTable, TypeTable, FuncTable)
+
+type ConstTable = Map Text Value
+type VarTable = Map Text (VarType, Maybe Value)
+type TypeTable = Map Text [Text]
+type FuncTable = Map Text Function
+
+data Value
+    = VBool Bool
+    | VInt Int
+    | VDouble Double
+    | VString Text
+    | RawVEnum Text
+    | VEnum Text Text -- Name, EnumName
+    deriving (Eq, Ord, Show)
 

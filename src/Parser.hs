@@ -43,7 +43,10 @@ optionalList :: Alternative f => f [a] -> f [a]
 optionalList f = fromMaybe [] <$> optional f
 
 pProgramHeader :: Parser Text
-pProgramHeader = try (pRW_program >> identifier) <|> pRW_program
+pProgramHeader = do
+    t <- try (pRW_program >> identifier) <|> pRW_program
+    optional semi
+    return t
 
 pBlocks :: Parser [BlockDef]
 pBlocks = try a <|> b  where
@@ -58,10 +61,10 @@ pBlocks = try a <|> b  where
 
 pBlock :: Parser BlockDef
 pBlock =
-    (VarBlock <$> pVarBlocks)
-        <|> (ConstBlock <$> pConstBlocks)
-        <|> (TypeBlock <$> pTypeBlocks)
-        <|> (FuncBlock <$> pFuncDefBlock)
+    try (VarBlock <$> pVarBlocks)
+        <|> try (ConstBlock <$> pConstBlocks)
+        <|> try (TypeBlock <$> pTypeBlocks)
+        <|> try (FuncBlock <$> pFuncDefBlock)
 
 ---------- VAR BLOCK WITH ASSIGNMENT START ----------
 pConstBlocks :: Parser [ConstDef]
@@ -121,11 +124,14 @@ pTypeDef = do
 pVarBlocks :: Parser [VarDef]
 pVarBlocks = try a <|> b  where
     a = do
-        a1 <- pRW_var >> pVarDefs
+        pRW_var
+        a1 <- optional (char '\n') >> pVarDefs
         semi
         a2 <- pVarBlocks
         return (a1 ++ a2)
-    b = pRW_var >> pVarDefs
+    b = do
+        pRW_var
+        optional (char '\n') >> pVarDefs
 
 pVarDefs :: Parser [VarDef]
 pVarDefs = try a <|> b  where
@@ -253,6 +259,8 @@ pStatement = choice
     , try pAssign
     , pReadln
     , pWriteln
+    , pBreak
+    , pContinue
     , pProcCall
     ]
 
@@ -328,6 +336,12 @@ pReadln = Readln <$> (pRW_readln >> parens pVarList)
 pWriteln :: Parser Statement
 pWriteln = Writeln <$> (pRW_writeln >> parens pExprs)
 ---------- IO END ----------
+
+pBreak :: Parser Statement
+pBreak = pRW_break >> return StatementBreak
+
+pContinue :: Parser Statement
+pContinue = pRW_continue >> return StatementContinue
 
 pProcCall :: Parser Statement
 pProcCall = identifier >>= \name ->
@@ -467,6 +481,8 @@ rws =
     , "function"
     , "procedure"
     , "return"
+    , "break"
+    , "continue"
     ]
 
 pRW_const = rword "const"
@@ -499,6 +515,8 @@ pRW_until = rword "until"
 pRW_function = rword "function"
 pRW_procedure = rword "procedure"
 pRW_return = rword "return"
+pRW_break = rword "break"
+pRW_continue = rword "continue"
 
 rword :: Text -> Parser Text
 rword w = if w `elem` rws

@@ -38,6 +38,7 @@ writeln(grade);
 for i:= 1 to 4 do writeln(i);
 repeat
    sum := sum + number;
+   break;
    number := number - 2;
 until number = 0;
 writeln(sum);
@@ -49,6 +50,9 @@ number := 10;
 writeln(NUT);
 while number>0 do
 begin
+   if sum = 28 then begin sum := sum + number; continue; end;
+   if sum < 100 then writeln(sum);
+   if sum = 34 then break;
    sum := sum + number;
    number := number - 2
 end;
@@ -64,10 +68,11 @@ end;
 if 'aa' = 'aa' then
     begin
     c := 21;
-    writeln('hahaha')
+    writeln('hahaha');
     end
-else
-    writeln('nooo');
+else if 'aa' = 'ab' then
+    writeln('nooo')
+else writeln('fin');
 writeln(c);
 writeln('nut' = 'nut');
 writeln('lol ', 5 + 2, true && false, a, b, c, d, ' ' ++ gee);;;;
