@@ -729,21 +729,33 @@ evalExpr expr = case expr of
     GreaterThan s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
-        return $ VBool $ s1e > s2e
+        case (s1e, s2e) of
+            (VInt    i1, VDouble d2) -> return $ VBool ((fromIntegral i1) > d2)
+            (VDouble d1, VInt i2   ) -> return $ VBool (d1 > (fromIntegral i2))
+            _                        -> return $ VBool (s1e > s2e)
     LessThan s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
-        return $ VBool $ s1e < s2e
+        case (s1e, s2e) of
+            (VInt    i1, VDouble d2) -> return $ VBool ((fromIntegral i1) < d2)
+            (VDouble d1, VInt i2   ) -> return $ VBool (d1 < (fromIntegral i2))
+            _                        -> return $ VBool (s1e < s2e)
     GreaterThanEq s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
         case (s1e, s2e) of
             (VInt i1, VDouble d2) ->
-                return $ VBool
-                    (s1e > s2e || (abs (fromIntegral i1 - d2) < 0.00001))
+                return
+                    $ VBool
+                          (  ((fromIntegral i1) > d2)
+                          || (abs (fromIntegral i1 - d2) < 0.00001)
+                          )
             (VDouble d1, VInt i2) ->
-                return $ VBool
-                    (s1e > s2e || (abs (d1 - fromIntegral i2) < 0.00001))
+                return
+                    $ VBool
+                          (  (d1 > (fromIntegral i2))
+                          || (abs (d1 - fromIntegral i2) < 0.00001)
+                          )
             (VDouble d1, VDouble d2) ->
                 return $ VBool (s1e > s2e || (abs (d1 - d2) < 0.00001))
             _ -> return $ VBool $ s1e >= s2e
@@ -752,11 +764,17 @@ evalExpr expr = case expr of
         s2e <- evalExpr s2
         case (s1e, s2e) of
             (VInt i1, VDouble d2) ->
-                return $ VBool
-                    (s1e < s2e || (abs (fromIntegral i1 - d2) < 0.00001))
+                return
+                    $ VBool
+                          (  ((fromIntegral i1) < d2)
+                          || (abs (fromIntegral i1 - d2) < 0.00001)
+                          )
             (VDouble d1, VInt i2) ->
-                return $ VBool
-                    (s1e < s2e || (abs (d1 - fromIntegral i2) < 0.00001))
+                return
+                    $ VBool
+                          (  (d1 < (fromIntegral i2))
+                          || (abs (d1 - fromIntegral i2) < 0.00001)
+                          )
             (VDouble d1, VDouble d2) ->
                 return $ VBool (s1e < s2e || (abs (d1 - d2) < 0.00001))
             _ -> return $ VBool $ s1e <= s2e
@@ -779,20 +797,17 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be boolean or int"
-    -- TODO: Should not be the same as or
     OrElse s1 s2 -> do
         s1e <- evalExpr s1
-        s2e <- evalExpr s2
-        case (s1e, s2e) of
-            (VBool b1, VBool b2) -> return $ VBool $ b1 || b2
-            (VInt  i1, VInt i2 ) -> return $ VInt $ i1 .|. i2
-            _ ->
-                error
-                    $  "Expected ->"
-                    ++ show s1e
-                    ++ "<- and ->"
-                    ++ show s2e
-                    ++ "<- to be boolean or int"
+        case (s1e) of
+            (VBool True ) -> return $ VBool True
+            (VBool False) -> do
+                s2e <- evalExpr s2
+                case (s2e) of
+                    (VBool r) -> return $ VBool r
+                    _ ->
+                        error $ "Expected ->" ++ show s2e ++ "<- to be boolean"
+            _ -> error $ "Expected ->" ++ show s1e ++ "<- to be boolean"
     And s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
@@ -806,20 +821,17 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be boolean or int"
-    -- TODO: Should not be the same as and
     AndThen s1 s2 -> do
         s1e <- evalExpr s1
-        s2e <- evalExpr s2
-        case (s1e, s2e) of
-            (VBool b1, VBool b2) -> return $ VBool $ b1 && b2
-            (VInt  i1, VInt i2 ) -> return $ VInt $ i1 .&. i2
-            _ ->
-                error
-                    $  "Expected ->"
-                    ++ show s1e
-                    ++ "<- and ->"
-                    ++ show s2e
-                    ++ "<- to be boolean or int"
+        case (s1e) of
+            (VBool False) -> return $ VBool False
+            (VBool True ) -> do
+                s2e <- evalExpr s2
+                case (s2e) of
+                    (VBool r) -> return $ VBool r
+                    _ ->
+                        error $ "Expected ->" ++ show s2e ++ "<- to be boolean"
+            _ -> error $ "Expected ->" ++ show s1e ++ "<- to be boolean"
     Xor s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
@@ -833,7 +845,18 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be boolean or int"
-    -- TODO: Implement shift left and shift right
+    ShiftLeft s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VInt i2) -> return $ VInt $ shiftL i1 i2
+            _ -> error "Shift left requires two integer arguments"
+    ShiftRight s1 s2 -> do
+        s1e <- evalExpr s1
+        s2e <- evalExpr s2
+        case (s1e, s2e) of
+            (VInt i1, VInt i2) -> return $ VInt $ shiftR i1 i2
+            _ -> error "Shift right requires two integer arguments"
     StringConcat s1 s2 -> do
         s1e <- evalExpr s1
         s2e <- evalExpr s2
@@ -847,7 +870,6 @@ evalExpr expr = case expr of
                     ++ "<- and ->"
                     ++ show s2e
                     ++ "<- to be string"
-    _ -> error $ "Invalid expression ->" ++ show expr ++ "<-"
 
 booleanXor :: Bool -> Bool -> Bool
 booleanXor True  p = not p

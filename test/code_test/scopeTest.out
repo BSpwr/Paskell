@@ -1,0 +1,6 @@
+In global scope
+value of a = 100 b =  200 and c = 300
+In function scope
+value of a = 10 b =  20 and c = 30
+Back in global scope
+value of a = 100 b =  200 and c = 300

@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 1c488e90c78958081ddbbdfdd97b17e26fc8cdc32471b59e6546c5d91a680236
+-- hash: 8befbdcc0157d7717223e9bcbe61423798267d9ec887462fdf65a4b4fdc7d6dd
 
 name:           Paskell
 version:        0.1.0.0
@@ -36,9 +36,11 @@ library
   hs-source-dirs:
       src
   build-depends:
-      Stack >=0.4.0
+      QuickCheck
+    , Stack >=0.4.0
     , base >=4.7 && <5
     , containers
+    , hspec
     , megaparsec >=8
     , mtl
     , parser-combinators >=1.1.0
@@ -55,9 +57,11 @@ executable Paskell-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Paskell
+    , QuickCheck
     , Stack >=0.4.0
     , base >=4.7 && <5
     , containers
+    , hspec
     , megaparsec >=8
     , mtl
     , parser-combinators >=1.1.0
@@ -75,9 +79,11 @@ test-suite Paskell-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       Paskell
+    , QuickCheck
     , Stack >=0.4.0
     , base >=4.7 && <5
     , containers
+    , hspec
     , megaparsec >=8
     , mtl
     , parser-combinators >=1.1.0

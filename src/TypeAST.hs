@@ -67,8 +67,7 @@ data ValueLiteral =
     deriving (Eq, Ord, Show)
 
 data Expr
-    =  Text
-    | VarCall Text [Expr]
+    = VarCall Text [Expr]
     | VExpr ValueLiteral
     | Neg Expr
     | Sum Expr Expr

@@ -1,0 +1,62 @@
+456
+912
+1234
+3702
+wow!
+true and false
+Testing Nested Ifs
+Testing functions
+Value to take the sine of: 
+30.0
+ degrees
+Sin: 
+0.49999999999999994
+Cos: 
+0.7071067811865476
+Sqrt: 
+0.8408964152537146
+Value to take the natural log of: 
+0.7071067811865476
+Ln: 
+2.995732273553991
+Exp: 
+19.999999999999996
+Testing Cases
+Case 1: 
+Case 2: 
+Letter was A
+Case 3: 
+Letter was not in case!
+b was true!
+Testing Enum Equivalence
+enum works!
+Testing Comparisons
+i was less than n
+look ma, no args!
+7
+--
+7
+6
+5
+3
+2
+1
+0
+--
+1
+2
+3
+4
+5
+7
+--
+8
+--
+0
+1
+2
+3
+4
+5
+7
+All tests completed!
