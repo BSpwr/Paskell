@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 -- HSpec tests for Interpreter.hs
 module Main where
 
@@ -319,3 +321,482 @@ main = hspec $ do
                                  )
                                ]
                            )
+
+    describe "While do loop" $ do
+        it "loops until condition met" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementWhile
+                        (NotEq (VExpr $ Int 50) (VarCall (pack "Var1") []))
+                        (Assign
+                            ( pack "Var1"
+                            , Sum (VarCall (pack "Var1") []) (VExpr $ Int 1)
+                            )
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 50)))]
+                           )
+        it "can break out" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementWhile
+                        (NotEq (VExpr $ Int 50) (VarCall (pack "Var1") []))
+                        (StatementBlock
+                            [ (Assign
+                                  ( pack "Var1"
+                                  , Sum (VarCall (pack "Var1") [])
+                                        (VExpr $ Int 1)
+                                  )
+                              )
+                            , StatementBreak
+                            ]
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 1)))]
+                           )
+        it "can continue" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementWhile
+                        (NotEq (VExpr $ Int 50) (VarCall (pack "Var1") []))
+                        (StatementBlock
+                            [ (Assign
+                                  ( pack "Var1"
+                                  , Sum (VarCall (pack "Var1") [])
+                                        (VExpr $ Int 1)
+                                  )
+                              )
+                            , StatementContinue
+                            , (Assign
+                                  ( pack "Var1"
+                                  , Sum (VarCall (pack "Var1") [])
+                                        (VExpr $ Int 100)
+                                  )
+                              )
+                            ]
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 50)))]
+                           )
+        it "does not run if condition false" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementWhile
+                        (VExpr BFalse)
+                        (Assign
+                            ( pack "Var1"
+                            , Sum (VarCall (pack "Var1") []) (VExpr $ Int 1)
+                            )
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 0)))]
+                           )
+
+    describe "Repeat until loop" $ do
+        it "loops while condition not met" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementRepeatUntil
+                        [ (Assign
+                              ( pack "Var1"
+                              , Sum (VarCall (pack "Var1") []) (VExpr $ Int 1)
+                              )
+                          )
+                        ]
+                        (Eq (VExpr $ Int 50) (VarCall (pack "Var1") []))
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 50)))]
+                           )
+        it "can break out" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementRepeatUntil
+                        [ (Assign
+                              ( pack "Var1"
+                              , Sum (VarCall (pack "Var1") []) (VExpr $ Int 1)
+                              )
+                          )
+                        , StatementBreak
+                        ]
+                        (Eq (VExpr $ Int 50) (VarCall (pack "Var1") []))
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 1)))]
+                           )
+        it "can continue" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementRepeatUntil
+                        [ (Assign
+                              ( pack "Var1"
+                              , Sum (VarCall (pack "Var1") []) (VExpr $ Int 1)
+                              )
+                          )
+                        , StatementContinue
+                        , (Assign
+                              ( pack "Var1"
+                              , Sum (VarCall (pack "Var1") [])
+                                    (VExpr $ Int (-100))
+                              )
+                          )
+                        ]
+                        (Eq (VExpr $ Int 50) (VarCall (pack "Var1") []))
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 50)))]
+                           )
+        it "runs once if condition true" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementRepeatUntil
+
+                        [ (Assign
+                              ( pack "Var1"
+                              , Sum (VarCall (pack "Var1") []) (VExpr $ Int 1)
+                              )
+                          )
+                        ]
+                        (VExpr BTrue)
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 1)))]
+                           )
+
+    describe "For loop" $ do
+        it "loops until condition met" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementFor
+                        (pack "Var1", VExpr $ Int 0)
+                        To
+                        (VExpr $ Int 50)
+                        (Assign
+                            ( pack "Var2"
+                            , Sum (VarCall (pack "Var2") [])
+                                  (VarCall (pack "Var1") [])
+                            )
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList
+                          [ (pack "Var1", (IntType, Just (VInt 0)))
+                          , (pack "Var2", (IntType, Just (VInt 0)))
+                          ]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [ (pack "Var1", (IntType, Just (VInt 50)))
+                               , (pack "Var2", (IntType, Just (VInt 1275)))
+                               ]
+                           )
+        it "can break out" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementFor
+                        (pack "Var1", VExpr $ Int 0)
+                        To
+                        (VExpr $ Int 50)
+                        (StatementBlock
+                            [ (Assign
+                                  ( pack "Var2"
+                                  , Sum (VarCall (pack "Var2") [])
+                                        (VarCall (pack "Var1") [])
+                                  )
+                              )
+                            , StatementBreak
+                            ]
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList
+                          [ (pack "Var1", (IntType, Just (VInt 0)))
+                          , (pack "Var2", (IntType, Just (VInt 0)))
+                          ]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [ (pack "Var1", (IntType, Just (VInt 0)))
+                               , (pack "Var2", (IntType, Just (VInt 0)))
+                               ]
+                           )
+        it "can continue" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementFor
+                        (pack "Var1", VExpr $ Int 0)
+                        To
+                        (VExpr $ Int 50)
+                        (StatementBlock
+                            [ StatementContinue
+                            , (Assign
+                                  ( pack "Var2"
+                                  , Sum (VarCall (pack "Var2") [])
+                                        (VarCall (pack "Var1") [])
+                                  )
+                              )
+                            ]
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList
+                          [ (pack "Var1", (IntType, Just (VInt 0)))
+                          , (pack "Var2", (IntType, Just (VInt 0)))
+                          ]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [ (pack "Var1", (IntType, Just (VInt 50)))
+                               , (pack "Var2", (IntType, Just (VInt 0)))
+                               ]
+                           )
+        it "does not run if has no iterations" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementFor
+                        (pack "Var1", VExpr $ Int 0)
+                        To
+                        (VExpr $ Int (-1))
+                        (Assign
+                            ( pack "Var2"
+                            , Sum (VarCall (pack "Var2") [])
+                                  (VarCall (pack "Var1") [])
+                            )
+                        )
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList
+                          [ (pack "Var1", (IntType, Just (VInt 0)))
+                          , (pack "Var2", (IntType, Just (VInt 0)))
+                          ]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [ (pack "Var1", (IntType, Just (VInt 0)))
+                               , (pack "Var2", (IntType, Just (VInt 0)))
+                               ]
+                           )
+
+    describe "Case statement" $ do
+        it "executes the correct statement" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementCase
+                        (VExpr $ StringLiteral (pack "password"))
+                        [ CaseLine
+                            [ StringLiteral $ pack "apple"
+                            , StringLiteral $ pack "banana"
+                            ]
+                            (Assign (pack "Var1", VExpr $ Int 10))
+                        , CaseLine
+                            [ StringLiteral $ pack "password"
+                            , StringLiteral $ pack "FBI OPEN UP"
+                            ]
+                            (Assign (pack "Var1", VExpr $ Int 20))
+                        ]
+                        (Just (Assign (pack "Var1", VExpr $ Int 999)))
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 20)))]
+                           )
+        it "executes the else statement" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (execStatement $ StatementCase
+                        (VExpr $ StringLiteral (pack "password"))
+                        [ CaseLine
+                            [ StringLiteral $ pack "apple"
+                            , StringLiteral $ pack "banana"
+                            ]
+                            (Assign (pack "Var1", VExpr $ Int 10))
+                        , CaseLine
+                            [ StringLiteral $ pack "passwordz"
+                            , StringLiteral $ pack "FBI OPEN UP"
+                            ]
+                            (Assign (pack "Var1", VExpr $ Int 20))
+                        ]
+                        (Just (Assign (pack "Var1", VExpr $ Int 999)))
+                    )
+                    ( NormalStatus
+                    , ( Map.empty
+                      , Map.fromList [(pack "Var1", (IntType, Just (VInt 0)))]
+                      , Map.empty
+                      , Map.empty
+                      )
+                    )
+            varTable
+                `shouldBe` (Map.fromList
+                               [(pack "Var1", (IntType, Just (VInt 999)))]
+                           )
+
+    describe "Procedure/Function calls" $ do
+        it "can define and call procedures" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (interpreterStart
+                        (Node
+                            "Root"
+                            (Block
+                                [ VarBlock [(["msg"], StringType, Nothing)]
+                                , FuncBlock
+                                    [ Function
+                                          (FunctionDec "sayHello" [] Nothing)
+                                          []
+                                          (StatementBlock
+                                              [ Assign
+                                                    ( "msg"
+                                                    , VExpr
+                                                        (StringLiteral
+                                                            "hello world"
+                                                        )
+                                                    )
+                                              ]
+                                          )
+                                    ]
+                                ]
+                            )
+                            (ProgBlock (StatementBlock [ProcCall "sayHello" []])
+                            )
+                        )
+                    )
+                    (NormalStatus, (Map.empty, Map.empty, Map.empty, Map.empty))
+            varTable
+                `shouldBe` (Map.fromList
+                               [ ( "msg"
+                                 , (StringType, Just (VString "hello world"))
+                                 )
+                               ]
+                           )
+        it "can define and call functions" $ do
+            (iStatus, (constTable, varTable, typeTable, funcTable)) <-
+                execStateT
+                    (interpreterStart
+                        (Node
+                            "Root"
+                            (Block
+                                [ VarBlock [(["num1"], IntType, Nothing)]
+                                , FuncBlock
+                                    [ Function
+                                          (FunctionDec "hiddenNumber"
+                                                       [(["tmp"], IntType)]
+                                                       (Just IntType)
+                                          )
+                                          []
+                                          (StatementBlock
+                                              [ Assign
+                                                    ( "hiddenNumber"
+                                                    , Sum (VExpr (Int 87))
+                                                          (VarCall "tmp" [])
+                                                    )
+                                              ]
+                                          )
+                                    ]
+                                ]
+                            )
+                            (ProgBlock
+                                (StatementBlock
+                                    [ Assign
+                                          ( "num1"
+                                          , VarCall "hiddenNumber"
+                                                    [VExpr (Int 5)]
+                                          )
+                                    ]
+                                )
+                            )
+                        )
+                    )
+                    (NormalStatus, (Map.empty, Map.empty, Map.empty, Map.empty))
+            varTable
+                `shouldBe` (Map.fromList [("num1", (IntType, Just (VInt 92)))])

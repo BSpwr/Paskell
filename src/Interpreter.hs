@@ -121,23 +121,23 @@ execStatement (StatementBlock []            ) = return ()
 execStatement (StatementWhile expr statement) = do
     v <- evalExpr expr
     case v of
-        VBool b -> do
+        VBool True -> do
             x <- getStatus
             case x of
                 BreakStatus -> putStatus NormalStatus
                 ContinueStatus ->
                     putStatus NormalStatus
-                        >> (when
-                               b
-                               (execStatement (StatementWhile expr statement))
-                           )
+                        >> (execStatement (StatementWhile expr statement))
+
                 NormalStatus ->
                     execStatement statement
-                        >> (when
-                               b
-                               (execStatement (StatementWhile expr statement))
-                           )
-
+                        >> (execStatement (StatementWhile expr statement))
+        VBool False -> do
+            x <- getStatus
+            case x of
+                BreakStatus    -> putStatus NormalStatus
+                ContinueStatus -> putStatus NormalStatus
+                NormalStatus   -> return ()
         _ -> error "Expression for while loop must be boolean type"
 
 execStatement (StatementFor (t, ei) loopDir ef stat) = do
