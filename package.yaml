@@ -3,7 +3,7 @@ library:
 tests:
   Paskell-test:
     source-dirs: test
-    main: Spec.hs
+    main: InterpreterSpec.hs
     ghc-options:
     - -threaded
     - -rtsopts
@@ -15,7 +15,7 @@ maintainer: example@example.com
 dependencies:
 - hspec
 - QuickCheck
-- Stack >= 0.4.0
+- Stack
 - containers
 - mtl
 - parser-combinators >= 1.1.0

@@ -30,6 +30,4 @@ main = do
     case runParser pRun fileName (pack contents) of
         Left  e -> putStrLn $ errorBundlePretty e
         Right x -> do
-            state <- interpreterRun x
-            putStrLn ""
-            print state
+            interpreterRun x >> return ()

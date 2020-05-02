@@ -6,8 +6,6 @@ var F,L:real;
     b: boolean;
     i,j,n:integer;
     s:string;
-    x:array[1..10] of real;
-    y:array[1..10] of real;
     m:meme;
     d:meme;
     number,sum:integer;
@@ -15,9 +13,10 @@ var F,L:real;
 
 const colMax = 76;
       rowMax = 22;
-      dr = colMax+2;
+      dr = 2;
       cDelay = 20;
       letterA = 'A';
+      PI = 3.14;
 
 function double (t: integer): integer;
 begin
@@ -26,11 +25,9 @@ double := t * 2;
 end;
 
 function triple (g: integer): integer;
-var
-    result: integer;
 begin
 writeln(g);
-result := g * 3;
+triple := g * 3;
 end;
 
 procedure ree (bee, d: boolean; st: string);
@@ -54,7 +51,6 @@ var
     str: string = 'look ma, no args!';
 begin
 writeln(str);
-break
 end;
 
 begin

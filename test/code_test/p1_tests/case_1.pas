@@ -1,8 +1,8 @@
 program Case1Test;
 var
     grade: string;
-    b: real = 5;
-    val: real = 10;
+    b: real = 5.0;
+    val: real = 10.0;
 begin
 
     grade := 'A';

@@ -1,80 +1,198 @@
-program tester
-const
-PI = 3.141592654;
-NUT = 'sack';
-type
-SUMMER = (April, May, June, July, September);
-var gee : string = 'st' ++ 'ring';;;;;;;
-dee : string;;;;;;
-ADC : integer = 5;
-a,b,c,i : real;
-d,e : boolean;
-number : integer = 10;
-sum : integer = 0;
-grade: string;
-shit: SUMMER = April;
-function hiddenNumber(grade2, gee2: string; sum2: integer): integer;
+program calculator;
+
+type meme = (cat, nyan, pepe);
+
+var F,L:real;
+    b: boolean;
+    i,j,n:integer;
+    s:string;
+    m:meme;
+    d:meme;
+    number,sum:integer;
+    taco_loop:integer;
+
+const colMax = 76;
+      rowMax = 22;
+      dr = 2;
+      cDelay = 20;
+      letterA = 'A';
+      PI = 3.14;
+
+function double (t: integer): integer;
 begin
-    writeln('hii');
-    sum2 := sum2 + 42;
-    hiddenNumber := sum2;
+writeln(t);
+double := t * 2;
 end;
-procedure sayHello;
+
+function triple (g: integer): integer;
 begin
-     writeln('hello world!');
+writeln(g);
+triple := g * 3;
 end;
-//
-//
+
+procedure ree (bee, d: boolean; st: string);
 begin
-grade := 'C';
-writeln(shit);
-a := 3 + 5;;;;;;;;;;;
-b := 6.54 + 434343;
-c := a + b;
-d := false || ((false && false) || true);
-dee := gee ++ 'aaaa';;
-//readln(a, b);;
-writeln(grade);
-for i:= 1 to 4 do writeln(i);
-repeat
-   sum := sum + number;
-   break;
-   number := number - 2;
-until number = 0;
-writeln(sum);
-writeln(PI);
-sayHello;
-hiddenNumber(grade, gee, sum);
-writeln(hiddenNumber(grade, gee, sum));
-number := 10;
-writeln(NUT);
-while number>0 do
-begin
-   if sum = 28 then begin sum := sum + number; continue; end;
-   if sum < 100 then writeln(sum);
-   if sum = 34 then break;
-   sum := sum + number;
-   number := number - 2
+writeln(st);
+writeln(bee, ' and ', d);
 end;
-writeln(sum);
-case (grade) of
-    'A' : writeln('Excellent!' );
-    'B', 'C': writeln('Well done' );
-    'D' : writeln('You passed' );
-    'F' : writeln('Better try again' );
-    else
-        writeln('junk!');
-end;  
-if 'aa' = 'aa' then
+
+function fib(a:integer): integer;
+begin
+    case a of
+        0: fib := 0;
+        1: fib := 1;
+        else
+            fib := fib(a-1) + fib(a-2);
+    end;
+end;
+
+procedure print_msg();
+var
+    str: string = 'look ma, no args!';
+begin
+writeln(str);
+end;
+
+begin
+  b:=false;
+  d:=cat;
+
+  writeln(double(456));
+  writeln(triple(1234));
+  ree(true, false, 'wow!');
+
+  (*Nested Ifs*)
+  writeln('Testing Nested Ifs');
+  if (b <> true) then
+  begin
+    m:=pepe;
+    b:=true;
+    i:=0;
+    j:=10;
+    n:= j*10;
+    F:= 30.0;
+
+    (*Functions*)
+    writeln('Testing functions');
+    writeln('Value to take the sine of: ');
+    writeln(F);
+    writeln(' degrees');
+    L:= sin(F*(PI/180.0));
+    writeln('Sin: ');
+    writeln(L);
+    L:= 45.0;
+    F:= cos(L*(PI/180.0));
+    writeln('Cos: ');
+    writeln(F);
+    L:= sqrt(F);
+    writeln('Sqrt: ');
+    writeln(L);
+    L:=20.0;
+    writeln('Value to take the natural log of: ');
+    writeln(F);
+    F:= ln(L);
+    writeln('Ln: ');
+    writeln(F);
+    L:= exp(F);
+    writeln('Exp: ');
+    writeln(L);
+
+    (*Case*)
+    writeln('Testing Cases');
+    writeln('Case 1: ');
+    case letterA of
+        'C': writeln('Letter was C');
+        'B': writeln('Letter was B');
+    end;
+    writeln('Case 2: ');
+    case letterA of
+        'A': writeln('Letter was A');
+        'B': writeln('Letter was B');
+    end;
+    writeln('Case 3: ');
+    case letterA of
+        'C': writeln('Letter was B');
+        'B': writeln('Letter was B');
+        else
+            writeln('Letter was not in case!');
+    end;
+  end
+  else
+  begin
+
+    (*Readln*)
+  //  writeln('Testing readln');
+   // writeln('Enter a value:');
+   // readln(s,b);
+  //  writeln('My value was: ',s,' and the value of b is ',b);
+    (*This is a comment, this does not affect the code at all!*)
+  //  if(b = true) then
+   //     writeln('b was true!');
+  end;
+ // writeln('Enter a value:');
+ // readln(s,b);
+//  writeln('My value was: ',s,' and the value of b is ',b);
+  (*This is a comment, this does not affect the code at all!*)
+  if(b = true) then
+      writeln('b was true!');
+
+  (*Enums*)
+  writeln('Testing Enum Equivalence');
+  if(m <> d) then
+      writeln('enum works!');
+
+  (*Comparisons*)
+  writeln('Testing Comparisons');
+  if(i > n) then
+      writeln('i was greater than n')
+  else
+      writeln('i was less than n');
+
+   print_msg();
+
+   number := 8;
+   while number>0 do
+   begin
+       number := number - 1;
+       if (number = 6) then break;
+       writeln(number);
+   end;
+
+   writeln('--');
+
+  number := 8;
+  while number>0 do
+  begin
+     number := number - 1;
+     if (number = 4) then continue;
+     writeln(number);
+  end;
+
+  writeln('--');
+  for taco_loop:= 1 to 10 do
+  begin
+  if (taco_loop = 6) then continue
+  else if (taco_loop = 8) then break;
+  writeln(taco_loop);
+  end;
+
+  writeln('--');
+  writeln(taco_loop);
+  writeln('--');
+
+    i := 0;
+
+    repeat
+    if (i = 6) then
     begin
-    c := 21;
-    writeln('hahaha');
+        i := i + 1;
+    continue
     end
-else if 'aa' = 'ab' then
-    writeln('nooo')
-else writeln('fin');
-writeln(c);
-writeln('nut' = 'nut');
-writeln('lol ', 5 + 2, true && false, a, b, c, d, ' ' ++ gee);;;;
+    else if (i = 8) then break;
+        writeln(i);
+        i := i + 1;
+    until i = 10;
+
+  writeln('All tests completed!');
 end
 .

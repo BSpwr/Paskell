@@ -3,8 +3,8 @@ var
    grade: string = 'A';
    good: boolean = true;
    junk, junk2: string;
-   val: real = 5;
-   b: real = 5;
+   val: real = 5.0;
+   b: real = 5.0;
    s, a: real;
 begin
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Interpreter where
 
 import           Control.Monad                  ( void
@@ -598,6 +600,36 @@ expandFuncParam [] = []
 evalExpr :: Expr -> PaskellState Value
 evalExpr expr = case expr of
     -- VarCall can be either a variable/constant, a function call, or an enum type
+    VarCall "sin" [s1] -> do
+        s1a <- evalExpr s1
+        case s1a of
+            VInt a -> return $ VDouble $ sin $ fromIntegral a
+            VDouble b -> return $ VDouble $ sin b
+    VarCall "cos" [s1] -> do
+        s1a <- evalExpr s1
+        case s1a of
+            VInt a -> return $ VDouble $ cos $ fromIntegral a
+            VDouble b -> return $ VDouble $ cos b
+    VarCall "tan" [s1] -> do
+        s1a <- evalExpr s1
+        case s1a of
+            VInt a -> return $ VDouble $ tan $ fromIntegral a
+            VDouble b -> return $ VDouble $ tan b
+    VarCall "sqrt" [s1] -> do
+        s1a <- evalExpr s1
+        case s1a of
+            VInt a -> return $ VDouble $ sqrt $ fromIntegral a
+            VDouble b -> return $ VDouble $ sqrt b
+    VarCall "ln" [s1] -> do
+        s1a <- evalExpr s1
+        case s1a of
+            VInt a -> return $ VDouble $ log $ fromIntegral a
+            VDouble b -> return $ VDouble $ log b
+    VarCall "exp" [s1] -> do
+        s1a <- evalExpr s1
+        case s1a of
+            VInt a -> return $ VDouble $ exp $ fromIntegral a
+            VDouble b -> return $ VDouble $ exp b
     VarCall name [] -> do
         mvg <- maybeVarGet name
         case mvg of

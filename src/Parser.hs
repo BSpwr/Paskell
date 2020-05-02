@@ -34,7 +34,7 @@ pStart :: Parser AST
 pStart = do
     pProgramHeader
     a1 <- optionalList pBlocks
-    semi
+    optional semi
     a2 <- pStatementBlock
     dot
     return $ Node "Root" (Block a1) (ProgBlock a2)
@@ -201,14 +201,14 @@ pFunction = do
 pFunctionDec :: Parser FunctionDec
 pFunctionDec = do
     name  <- pRW_function >> identifier
-    param <- optionalList $ parens pFunctionParam
+    param <- optionalList $ parens (optionalList pFunctionParam)
     col
     FunctionDec name param . Just <$> pVarType
 
 pProcedureDec :: Parser FunctionDec
 pProcedureDec = do
     name  <- pRW_procedure >> identifier
-    param <- optionalList $ parens pFunctionParam
+    param <- optionalList $ parens (optionalList pFunctionParam)
     return $ FunctionDec name param Nothing
 
 pFunctionParam :: Parser [FuncParam]
@@ -245,8 +245,10 @@ pStatements = try a <|> b
         a2 <- pStatements
         return (a1 : a2)
     b = do
-        b1 <- pStatement
-        return [b1]
+        b1 <- optional pStatement
+        case b1 of
+            Just b1j -> return [b1j]
+            Nothing -> return []
 
 pStatement :: Parser Statement
 pStatement = choice
@@ -577,6 +579,7 @@ dot = symbol "."
 sc :: Parser ()
 sc = L.space space1 lineComment blockComment
   where
-    lineComment  = L.skipLineComment "//"
-    blockComment = L.skipBlockComment "/*" "*/"
+    lineComment = L.skipLineComment "//"
+    blockComment =
+        L.skipBlockComment "/*" "*/" <|> L.skipBlockComment "(*" "*)"
 ---------- UTIL END ----------
