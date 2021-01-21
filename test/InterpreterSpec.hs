@@ -799,4 +799,4 @@ main = hspec $ do
                     )
                     (NormalStatus, (Map.empty, Map.empty, Map.empty, Map.empty))
             varTable
-                `shouldBe` (Map.fromList [("num1", (IntType, Just (VInt 92)))])
+                `shouldBe` (Map.fromList [("hiddenNumber",(IntType,Just (VInt 92))),("num1",(IntType,Just (VInt 92))),("tmp",(IntType,Just (VInt 5)))])

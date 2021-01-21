@@ -28,7 +28,7 @@ total=0
 
 test_dir="test/code_test"
 
-declare -a test_folders=("." "p1_tests")
+declare -a test_folders=(".")
 
 for folder in "${test_folders[@]}"; do
     for i in "$test_dir"/"$folder"/*"$src_extension"; do

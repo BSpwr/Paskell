@@ -1,7 +1,7 @@
 program tester
 const
 PI = 3.141592654;
-NUT = 'sack';
+GTT = 'sack';
 type
 SUMMER = (April, May, June, July, September);
 var gee : string = 'st' ++ 'ring';;;;;;;
@@ -12,7 +12,7 @@ d,e : boolean;
 number : integer = 10;
 sum : integer = 0;
 grade: string;
-shit: SUMMER = April;
+eddh: SUMMER = April;
 function hiddenNumber(grade2, gee2: string; sum2: integer): integer;
 begin
     writeln('hii');
@@ -27,7 +27,7 @@ end;
 //
 begin
 grade := 'C';
-writeln(shit);
+writeln(eddh);
 a := 3 + 5;;;;;;;;;;;
 b := 6.54 + 434343;
 c := a + b;
@@ -47,7 +47,7 @@ sayHello;
 hiddenNumber(grade, gee, sum);
 writeln(hiddenNumber(grade, gee, sum));
 number := 10;
-writeln(NUT);
+writeln(GTT);
 while number>0 do
 begin
    if sum = 28 then begin sum := sum + number; continue; end;
